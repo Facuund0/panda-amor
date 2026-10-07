@@ -28,7 +28,7 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace -PpandaUrl="${{ vars.PANDA_URL || 'https://TU-PROYECTO.vercel.app/' }}"
+          ./gradlew assembleDebug --no-daemon --stacktrace -PpandaUrl="${{ vars.PANDA_URL || 'https://panda-amor.vercel.app/' }}"
           cp app/build/outputs/apk/debug/app-debug.apk ../NuestroPanda.apk
 
       - uses: actions/upload-artifact@v4
