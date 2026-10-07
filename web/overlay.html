@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <title>Panda flotante</title>
+  <!--
+    Esta página la muestra la app Android en una ventanita transparente que flota
+    sobre las demás apps. Si la abrís en un navegador, simula la pantalla de un
+    celular para poder probarla.
+  -->
+  <style>
+    html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; font-family: "Nunito", system-ui, sans-serif; -webkit-user-select: none; user-select: none; }
+    #ventana { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+    .o-panda { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: 110px; height: 120px; }
+    .o-panda .panda-svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 4px 6px rgba(0,0,0,.18)); }
+    .o-globo {
+      position: absolute; left: 6px; right: 6px; top: 6px; background: #fff; color: #3b2a4a; border-radius: 18px;
+      padding: 9px 12px; font-weight: 800; font-size: 13px; line-height: 1.3; text-align: center;
+      box-shadow: 0 6px 18px rgba(59, 42, 74, .22); animation: ap .25s ease;
+    }
+    .o-globo::after { content: ""; position: absolute; left: 50%; bottom: -7px; margin-left: -7px; border: 7px solid transparent; border-top-color: #fff; border-bottom: 0; }
+    .o-globo[hidden] { display: none; }
+    @keyframes ap { from { opacity: 0; transform: translateY(6px) scale(.95); } }
+
+    /* ---- simulación en el navegador (no se usa en Android) ---- */
+    body.simulado { background: linear-gradient(160deg, #23324d, #4b3f7a); }
+    body.simulado::before { content: "Simulación del panda flotante · tocá: mimos · doble toque: abrir app · mantener: necesito amor · arrastrar: moverlo"; position: absolute; left: 12px; right: 12px; top: 12px; color: #fff; opacity: .7; font-size: 12px; font-weight: 700; text-align: center; }
+    body.simulado #ventana { transition: none; cursor: grab; }
+  </style>
+</head>
+<body>
+  <div id="ventana">
+    <div class="o-globo" id="globo" hidden></div>
+    <div class="o-panda" id="o-panda"></div>
+  </div>
+  <script src="vendor/supabase.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/reglas.js?v=1"></script>
+  <script src="js/frases.js?v=1"></script>
+  <script src="js/panda.js?v=1"></script>
+  <script src="js/voz.js?v=1"></script>
+  <script src="js/puente.js?v=1"></script>
+  <script src="js/datos.js?v=1"></script>
+  <script src="js/overlay.js?v=1"></script>
+</body>
+</html>

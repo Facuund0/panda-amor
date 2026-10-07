@@ -1,0 +1,12 @@
+node_modules
+.vercel
+.env*
+# Android
+android/.gradle
+android/build
+android/app/build
+android/local.properties
+android/app/libs/*.aar
+*.apk
+*.keystore
+.idea

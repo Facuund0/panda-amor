@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ícono de notificación: carita de panda (blanco) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFF" android:pathData="M6,3.5a2.6,2.6 0,1 0,0.01 0zM18,3.5a2.6,2.6 0,1 0,0.01 0z"/>
+    <path android:fillColor="#FFFFFF" android:fillType="evenOdd"
+        android:pathData="M12,5C6.5,5 3,8.6 3,13.2C3,17.8 7,21 12,21C17,21 21,17.8 21,13.2C21,8.6 17.5,5 12,5ZM8.6,10.6C9.9,10.4 10.6,12.2 10.3,13.4C10,14.6 8.4,15.2 7.6,14.4C6.8,13.6 7.3,10.8 8.6,10.6ZM15.4,10.6C16.7,10.8 17.2,13.6 16.4,14.4C15.6,15.2 14,14.6 13.7,13.4C13.4,12.2 14.1,10.4 15.4,10.6ZM10.9,16.4L13.1,16.4L12,17.6Z"/>
+</vector>

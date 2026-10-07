@@ -1,0 +1,9 @@
+{
+  "name": "Nuestro Panda",
+  "short_name": "Panda",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#fff4f6",
+  "theme_color": "#fff4f6",
+  "icons": [{ "src": "img/icono.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

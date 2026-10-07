@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#fff4f6" />
+  <title>Nuestro Panda</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="img/icono.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/app.css?v=1" />
+</head>
+<body>
+  <div id="app">
+    <div class="cargando" id="cargando">
+      <div class="cargando-panda" id="panda-carga"></div>
+      <p>Despertando al panda…</p>
+    </div>
+  </div>
+
+  <div class="hoja-fondo" id="hoja-fondo" hidden></div>
+  <section class="hoja" id="hoja" hidden role="dialog" aria-modal="true">
+    <div class="hoja-asa"></div>
+    <div class="hoja-cuerpo" id="hoja-cuerpo"></div>
+  </section>
+  <div class="aviso" id="aviso" role="status" aria-live="polite"></div>
+
+  <script src="vendor/supabase.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/reglas.js?v=1"></script>
+  <script src="js/frases.js?v=1"></script>
+  <script src="js/panda.js?v=1"></script>
+  <script src="js/voz.js?v=1"></script>
+  <script src="js/puente.js?v=1"></script>
+  <script src="js/datos.js?v=1"></script>
+  <script src="js/app.js?v=1"></script>
+</body>
+</html>

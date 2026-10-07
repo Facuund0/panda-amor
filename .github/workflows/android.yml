@@ -1,0 +1,45 @@
+# Compila la app Android en la nube de GitHub (no hace falta Android Studio).
+# Al terminar, el APK queda en: Releases → "APK más reciente" (y en Actions → Artifacts).
+name: Compilar APK
+
+on:
+  push:
+    branches: [main]
+    paths: ["android/**", ".github/workflows/android.yml"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Compilar APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace -PpandaUrl="${{ vars.PANDA_URL || 'https://TU-PROYECTO.vercel.app/' }}"
+          cp app/build/outputs/apk/debug/app-debug.apk ../NuestroPanda.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NuestroPanda-apk
+          path: NuestroPanda.apk
+
+      - name: Publicar para descargar desde el celular
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete apk --yes --cleanup-tag || true
+          gh release create apk NuestroPanda.apk --title "APK más reciente" --prerelease \
+            --notes "Descargá NuestroPanda.apk desde el celular e instalala. Compilada desde ${GITHUB_SHA::7}."

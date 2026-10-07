@@ -1,0 +1,7 @@
+{
+  "liveServer.settings.root": "/web",
+  "files.encoding": "utf8",
+  "editor.tabSize": 2,
+  "[kotlin]": { "editor.tabSize": 4 },
+  "files.exclude": { "android/.gradle": true, "android/build": true, "android/app/build": true }
+}

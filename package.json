@@ -1,0 +1,7 @@
+{
+  "name": "panda-amor",
+  "private": true,
+  "type": "module",
+  "description": "Panda virtual de pareja: web (Vercel) + base (Supabase) + app Android",
+  "engines": { "node": ">=18" }
+}

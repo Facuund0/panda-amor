@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Carita de panda para el ícono de la app (zona segura: centro 66x66) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#1F1C1D" android:pathData="M37,34m-10,0a10,10 0,1 1,20 0a10,10 0,1 1,-20 0"/>
+    <path android:fillColor="#1F1C1D" android:pathData="M71,34m-10,0a10,10 0,1 1,20 0a10,10 0,1 1,-20 0"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M54,57m-27,0a27,24 0,1 1,54 0a27,24 0,1 1,-54 0"/>
+    <path android:fillColor="#1F1C1D" android:pathData="M43,49C47,48 49,53 48,57C47,61 42,63 40,61C38,59 39,50 43,49Z"/>
+    <path android:fillColor="#1F1C1D" android:pathData="M65,49C61,48 59,53 60,57C61,61 66,63 68,61C70,59 69,50 65,49Z"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M45,55m-2.6,0a2.6,2.6 0,1 1,5.2 0a2.6,2.6 0,1 1,-5.2 0"/>
+    <path android:fillColor="#FFFFFF" android:pathData="M63,55m-2.6,0a2.6,2.6 0,1 1,5.2 0a2.6,2.6 0,1 1,-5.2 0"/>
+    <path android:fillColor="#1F1C1D" android:pathData="M51,64L57,64L54,67.5Z"/>
+    <path android:strokeColor="#1F1C1D" android:strokeWidth="1.6" android:strokeLineCap="round" android:pathData="M50,70Q52,72 54,70Q56,72 58,70"/>
+    <path android:fillColor="#FF9EB5" android:pathData="M37,66m-4,0a4,2.5 0,1 1,8 0a4,2.5 0,1 1,-8 0"/>
+    <path android:fillColor="#FF9EB5" android:pathData="M71,66m-4,0a4,2.5 0,1 1,8 0a4,2.5 0,1 1,-8 0"/>
+    <path android:fillColor="#FF6F9A" android:pathData="M78,30c-4,-3 -6,-6 -3,-7.5c1.5,-0.8 2.5,0 3,0.8c0.5,-0.8 1.5,-1.6 3,-0.8c3,1.5 1,4.5 -3,7.5z"/>
+</vector>
