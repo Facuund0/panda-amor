@@ -17,7 +17,8 @@ export function keyGemini(lugar) {
 export async function rpc(token, fn, args = {}) {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
     method: "POST",
-    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token || SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
+    // Sin sesión de usuario solo va la "apikey" (sirve con la clave nueva "publishable" y con la "anon" vieja)
+    headers: { apikey: SUPABASE_ANON_KEY, ...(token ? { Authorization: `Bearer ${token}` } : {}), "Content-Type": "application/json" },
     body: JSON.stringify(args),
   });
   const t = await r.text();
