@@ -283,7 +283,8 @@
   // ---------------------------------------------------------------
   async function arrancar() {
     if (!A) simulador();
-    panda = new Panda($("#o-panda"), { etapa: 0 });
+    // 24 cuadros por segundo alcanzan para que se vea fluido y gasta mucho menos batería
+    panda = new Panda($("#o-panda"), { etapa: 0, fps: 24 });
     try {
       D = await crearDatos();
       E = await D.iniciar();

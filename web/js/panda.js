@@ -174,8 +174,11 @@
   const lerp = (a, b, t) => a + (b - a) * t;
 
   class Panda {
-    constructor(contenedor, { etapa = 0 } = {}) {
+    // fps: cuántas veces por segundo se dibuja como máximo. Las pantallas de 90/120 Hz
+    // lo harían 120 veces por segundo y calientan el celular (el flotante usa menos).
+    constructor(contenedor, { etapa = 0, fps = 60 } = {}) {
       this.cont = contenedor;
+      this.msPorCuadro = 1000 / fps - 1;
       this.etapa = -1;
       this.animo = "feliz";
       this.nivelVoz = 0;
@@ -197,7 +200,13 @@
       this.limpio = 1; this.espuma = 0;
       this.setEtapa(etapa);
       this.ultimo = performance.now();
-      const bucle = (ts) => { if (this.muerto) return; this.cuadro(ts); requestAnimationFrame(bucle); };
+      let ultimoDibujo = 0;
+      const bucle = (ts) => {
+        // si el panda ya no está en pantalla (se cambió de vista), se apaga su animación
+        if (this.muerto || !this.cont.isConnected) { this.muerto = true; return; }
+        if (ts - ultimoDibujo >= this.msPorCuadro) { ultimoDibujo = ts; this.cuadro(ts); }
+        requestAnimationFrame(bucle);
+      };
       requestAnimationFrame(bucle);
     }
 

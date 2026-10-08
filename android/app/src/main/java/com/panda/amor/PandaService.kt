@@ -67,6 +67,11 @@ class PandaService : Service() {
         instancia = this
         Avisos.crearCanales(this)
         wm = getSystemService(WindowManager::class.java)
+        val filtro = android.content.IntentFilter().apply { addAction(Intent.ACTION_SCREEN_OFF); addAction(Intent.ACTION_SCREEN_ON) }
+        try {
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(pantalla, filtro, Context.RECEIVER_NOT_EXPORTED)
+            else registerReceiver(pantalla, filtro)
+        } catch (_: Exception) {}
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -98,7 +103,6 @@ class PandaService : Service() {
     private fun crearVentana() {
         web = WebView(this).apply {
             setBackgroundColor(Color.TRANSPARENT)
-            setLayerType(View.LAYER_TYPE_HARDWARE, null)
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
@@ -128,7 +132,23 @@ class PandaService : Service() {
     }
 
     fun ocultar(oculto: Boolean) = principal.post {
-        if (::capa.isInitialized) capa.visibility = if (oculto) View.GONE else View.VISIBLE
+        if (!::capa.isInitialized) return@post
+        capa.visibility = if (oculto) View.GONE else View.VISIBLE
+        pausarDibujo(oculto || !pantallaPrendida)
+    }
+
+    // ---- ahorro de batería: con la pantalla apagada (o el panda oculto) no se dibuja nada ----
+    // (los avisos de la pareja siguen llegando: solo se pausa la animación)
+    private var pantallaPrendida = true
+    private fun pausarDibujo(pausar: Boolean) {
+        if (!::web.isInitialized) return
+        try { if (pausar) web.onPause() else web.onResume() } catch (_: Exception) {}
+    }
+    private val pantalla = object : android.content.BroadcastReceiver() {
+        override fun onReceive(c: Context, i: Intent) {
+            pantallaPrendida = i.action != Intent.ACTION_SCREEN_OFF
+            pausarDibujo(!pantallaPrendida || MainActivity.enPrimerPlano)
+        }
     }
 
     private fun medidas(): DisplayMetrics {
@@ -190,6 +210,7 @@ class PandaService : Service() {
 
     override fun onDestroy() {
         instancia = null
+        try { unregisterReceiver(pantalla) } catch (_: Exception) {}
         animacion?.cancel()
         if (::capa.isInitialized) {
             try { wm.removeView(capa) } catch (_: Exception) {}
