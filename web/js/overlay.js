@@ -236,6 +236,8 @@
     if (sent) texto = (F.RESPUESTA_SENTIR[sent.id] || texto).replace(/\{otro\}/g, n.otro);
     const tonoOtro = ["frase", "mensaje"].includes(ev.tipo) ? F.tonoDe(ev.texto) : null;
     if (tonoOtro) texto = `${texto} ${F.respuestaTono("recibido", tonoOtro, n) || ""}`.trim();
+    const picante = ev.tipo === "mensaje" && String(ev.texto || "").startsWith("🔥");
+    if (picante) texto = `${n.otro} te mandó algo picante.`;
     if (ev.tipo === "llegue") texto = `¡${n.otro} llegó ${ev.texto || "bien"}! Qué alivio.`;
     if (ev.tipo === "alerta") texto = F.deOtro(ev.texto === "hombre" ? "alerta_hombre" : "alerta_mujer", n);
     if (ev.tipo === "ubicacion" && ev.texto === "en_vivo") texto = F.deOtro("ubicacion_vivo", n);
@@ -250,7 +252,7 @@
       sentir: `💭 ${n.otro}: ${sent ? sent.texto : "cómo se siente"}`, foto: `📸 ${n.otro} te mandó una foto`,
       pregunta: `❓ ${n.otro} respondió la pregunta del día`, alerta: "🚨 ¡ALERTA! 🚨", llegue: `🏠 ${n.otro} llegó ${ev.texto || "bien"}`,
     };
-    const cuerpo = { necesito_amor: "Tocá para mandarle mimos", pedir_ubicacion: "Tocá para compartir tu ubicación", mensaje: ev.texto, frase: ev.texto,
+    const cuerpo = { necesito_amor: "Tocá para mandarle mimos", pedir_ubicacion: "Tocá para compartir tu ubicación", mensaje: picante ? "Abrí la app para verlo 😏" : ev.texto, frase: ev.texto,
       sentir: String(ev.texto || "").split(" · ").slice(1).join(" · ") || "Tocá para responderle", foto: ev.texto && ev.texto !== "📸" ? ev.texto : "Tocá para verla", pregunta: "Respondé para ver qué puso",
       llegue: "¡Llegué, amor! 💗",
       alerta: `${n.otro} quiere saber: ¿estás con ${ev.texto === "hombre" ? "otro hombre" : "otra mujer"}? 🤨` };

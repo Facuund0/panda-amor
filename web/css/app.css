@@ -391,3 +391,22 @@ button.sistema-ubic { border: 0; font-family: inherit; cursor: pointer; }
 .select-voz { width: 100%; font: inherit; font-weight: 700; padding: 12px; border-radius: 14px; border: 2px solid var(--linea); background: #fff; color: var(--texto); }
 .sistema-llegue { background: #e8f8ee !important; color: #1b7a43 !important; }
 #escena-panda { touch-action: none; }
+
+/* ---------- modo +18 🔥 ---------- */
+.accion.picante-btn { background: linear-gradient(160deg, #fff0f3, #ffd6e0); }
+.picante h2 small { font-size: .8rem; background: #e5383b; color: #fff; padding: 2px 8px; border-radius: 999px; vertical-align: middle; }
+.niveles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 10px 0 4px; }
+.niveles button { border: 0; border-radius: 14px; padding: 8px 2px; background: #fff3f6; font: inherit; font-weight: 900; font-size: 1.1rem; color: var(--texto); cursor: pointer; display: grid; }
+.niveles button span { font-size: .6rem; font-weight: 800; color: var(--suave); }
+.niveles button.activo { background: linear-gradient(160deg, #ff6f9a, #e5383b); color: #fff; }
+.niveles button.activo span { color: #ffe1ea; }
+.pc-turno { text-align: center; font-weight: 700; color: var(--suave); margin: 8px 0; }
+.pc-carta { border-radius: 22px; padding: 22px 18px; min-height: 140px; display: grid; place-content: center; text-align: center; gap: 8px;
+  background: linear-gradient(160deg, #3b1029, #7a1f3d); color: #fff; box-shadow: 0 12px 30px rgba(122, 31, 61, .35); }
+.pc-carta.reto { background: linear-gradient(160deg, #5a0f1c, #c2253a); }
+.pc-carta.vacia { background: #fff3f6; color: var(--suave); box-shadow: none; }
+.pc-carta p { font-size: 1.2rem; font-weight: 800; line-height: 1.35; margin: 0; }
+.pc-tipo { font-size: .8rem; font-weight: 900; letter-spacing: 1px; opacity: .85; }
+.pc-botones { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.pc-botones.dos { grid-template-columns: 1fr 1.6fr; }
+.pc-botones .btn { padding: 12px 6px; }

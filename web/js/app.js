@@ -181,6 +181,7 @@
               <button class="accion" data-accion="hablar"><i>💬</i>Hablar<small>con IA</small></button>
               <button class="accion amor" data-accion="llegue"><i>🏠</i>¡Llegué!<small>o sacudí al panda</small></button>
               <button class="accion alerta-btn" data-accion="alerta"><i>🚨</i>¡Alerta!<small>en broma</small></button>
+              <button class="accion picante-btn" data-accion="picante" id="b-picante" hidden><i>🔥</i>Picante<small>+18</small></button>
               <button class="accion amor" data-accion="fechas"><i>📅</i>Nuestras fechas<small>aniversarios</small></button>
             </div>
           </div>
@@ -215,6 +216,7 @@
     $("#f-foto").addEventListener("change", fotoElegida);
     prepararBanio();
     prepararSacudida();
+    $("#b-picante").hidden = leer("panda-18", "") !== "1";
     document.addEventListener("pointermove", (e) => panda?.mirarA(e.clientX, e.clientY), { passive: true });
 
     D.suscribir(alRecibir);
@@ -373,6 +375,7 @@
     if (a === "alerta") return formularioAlerta();
     if (a === "llegue") return formularioLlegue();
     if (a === "fechas") return verCalendario();
+    if (a === "picante") return abrirPicante();
     if (a === "necesito_amor") return confirmarNecesitoAmor();
     hacer(a);
   }
@@ -639,6 +642,7 @@
       if (s && F.TRISTES.includes(s.id)) { panda.reaccion("triste"); alertaSentir(ev, s); }
       else panda.reaccion("amor");
     }
+    if (ev.tipo === "mensaje" && String(ev.texto || "").startsWith("🔥")) { texto = `${n.otro} te mandó algo picante 😏`; panda.reaccion("amor"); }
     if (ev.tipo === "llegue") { panda.reaccion("amor"); texto = `¡${n.otro} llegó ${ev.texto || "bien"}! Qué alivio 💗`; aviso(`🏠 ${n.otro} llegó ${ev.texto || "bien"}`); }
     if (ev.tipo === "alerta") { mostrarAlarma(ev); texto = F.deOtro(ev.texto === "hombre" ? "alerta_hombre" : "alerta_mujer", n); }
     if (ev.tipo === "ubicacion" && ev.texto === "en_vivo") texto = F.deOtro("ubicacion_vivo", n);
@@ -860,6 +864,11 @@
         <p class="nota">Se usa solo para: charlar con ${esc(nombres().panda)}, la frase del día (1 por día) y entender el ánimo cada 8 mensajes. Comer, mimos, vibrar, ubicación y la voz <b>no gastan</b>. Si se llega al límite, el panda responde sin IA hasta mañana.</p>
       </div>
 
+      <div class="tarjeta"><h3>🔥 Modo +18</h3>
+        <div class="fila"><div>Sección picante<div class="desc">Verdad o reto, preguntas y retos atrevidos para ustedes dos. Solo mayores de 18</div></div>
+          <label class="interruptor"><input type="checkbox" id="a-18" ${leer("panda-18", "") === "1" ? "checked" : ""}><span></span></label></div>
+      </div>
+
       <div class="tarjeta"><h3>📍 Ubicación</h3>
         <div class="fila"><div>Compartir sin preguntarme<div class="desc">Cuando ${esc(nombres().otro)} pregunte, se comparte sola</div></div>
           <label class="interruptor"><input type="checkbox" id="a-auto" ${E.yo.compartir_auto ? "checked" : ""}><span></span></label></div>
@@ -909,6 +918,12 @@
     $("#a-voz").addEventListener("change", (e) => { Voz.activa = e.target.checked; });
     $("#a-probar").addEventListener("click", () => decir(`Hola ${nombres().yo}, soy ${nombres().panda}. ¡Te quiero mucho!`));
     $("#a-fechas").addEventListener("click", editarFechas);
+    $("#a-18").addEventListener("change", (e) => {
+      if (e.target.checked && !confirm("Esta sección tiene contenido sexual para adultos.\n\n¿Los dos son mayores de 18 y quieren activarla?")) { e.target.checked = false; return; }
+      guardar("panda-18", e.target.checked ? "1" : "");
+      $("#b-picante").hidden = !e.target.checked;
+      aviso(e.target.checked ? "🔥 Listo: está en Panda → Entre nosotros" : "Modo +18 apagado");
+    });
     $("#a-auto").addEventListener("change", async (e) => { E = await D.ajustes({ auto: e.target.checked }); });
     $("#a-guardar").addEventListener("click", async () => {
       try { E = await D.ajustes({ nombre: $("#a-nombre").value.trim(), panda: $("#a-panda").value.trim() }); actualizarTodo(false); aviso("Guardado 💗"); } catch (er) { aviso(er.message); }
@@ -1420,6 +1435,52 @@
     });
     const fin = () => { ultX = null; };
     el.addEventListener("pointerup", fin); el.addEventListener("pointercancel", fin);
+  }
+
+  // ---------- MODO +18 🔥: verdad o reto con niveles de picante ----------
+  function abrirPicante() {
+    const n = nombres(), PC = globalThis.Picante;
+    const st = { nivel: +leer("panda-18-nivel", "1") || 1, escalada: leer("panda-18-escalada", "1") === "1", jugadas: 0, turno: 0, carta: null };
+    const turnoDe = () => (st.turno % 2 === 0 ? n.yo : n.otro);
+    const pintar = () => {
+      const c = st.carta, nv = PC.NIVELES[st.nivel];
+      abrirHoja(`<div class="picante">
+        <h2>🔥 Picante <small>+18</small></h2>
+        <div class="niveles">${[1, 2, 3, 4, 5].map((i) => `<button data-nivel="${i}" class="${i === st.nivel ? "activo" : ""}">${i}<span>${PC.NIVELES[i].nombre}</span></button>`).join("")}</div>
+        <div class="fila" style="margin:6px 0"><div>Escalada<div class="desc">Sube un nivel cada 3 cartas</div></div>
+          <label class="interruptor"><input type="checkbox" id="pc-escalada" ${st.escalada ? "checked" : ""}><span></span></label></div>
+        <p class="pc-turno">Turno de <b>${esc(turnoDe())}</b> · nivel ${nv.emoji}</p>
+        ${c ? `<div class="pc-carta ${c.tipo}"><span class="pc-tipo">${c.tipo === "verdad" ? "🗣️ VERDAD" : "🎲 RETO"} · ${PC.NIVELES[c.nivel].emoji}</span><p>${esc(c.texto)}</p></div>`
+            : `<div class="pc-carta vacia"><p>Elijan verdad, reto o al azar 😏</p></div>`}
+        <div class="pc-botones">
+          <button class="btn" data-pc="verdad">🗣️ Verdad</button>
+          <button class="btn" data-pc="reto">🎲 Reto</button>
+          <button class="btn btn-sec" data-pc="azar">🎰 Al azar</button>
+        </div>
+        ${c ? `<div class="pc-botones dos">
+          <button class="btn btn-sec btn-chico" id="pc-pasar">🙈 Pasar</button>
+          <button class="btn btn-sec btn-chico" id="pc-mandar">📲 Mandársela a ${esc(n.otro)}</button></div>` : ""}
+        <p class="nota" style="margin-top:10px">Siempre se puede pasar. Si algo no les copa, paren: palabra de seguridad <b>"panda"</b> 🐼</p>
+      </div>`);
+      $$("[data-nivel]").forEach((b) => b.addEventListener("click", () => { st.nivel = +b.dataset.nivel; st.jugadas = 0; guardar("panda-18-nivel", st.nivel); pintar(); }));
+      $("#pc-escalada").addEventListener("change", (e) => { st.escalada = e.target.checked; guardar("panda-18-escalada", st.escalada ? "1" : "0"); });
+      $$("[data-pc]").forEach((b) => b.addEventListener("click", () => {
+        if (st.carta) st.turno++;
+        st.carta = PC.carta(st.nivel, b.dataset.pc);
+        st.jugadas++;
+        if (st.escalada && st.jugadas % 3 === 0 && st.nivel < 5) { st.nivel++; guardar("panda-18-nivel", st.nivel); aviso(`🌶️ ¡Sube el picante! Nivel ${st.nivel}: ${PC.NIVELES[st.nivel].nombre}`); }
+        panda?.reaccion("amor");
+        pintar();
+      }));
+      $("#pc-pasar")?.addEventListener("click", () => { st.turno++; st.carta = null; pintar(); });
+      $("#pc-mandar")?.addEventListener("click", async () => {
+        try {
+          await D.accion("mensaje", `🔥 ${c.tipo === "verdad" ? "Verdad" : "Reto"} (nivel ${c.nivel}): ${c.texto}`.slice(0, 300));
+          aviso(`Se la mandaste a ${n.otro} 😏`);
+        } catch (e) { aviso(msjError(e)); }
+      });
+    };
+    pintar();
   }
 
   // ---------- ALERTA EN BROMA 🚨 ("¿estás con otra mujer / otro hombre?") ----------

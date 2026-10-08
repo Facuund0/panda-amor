@@ -1014,6 +1014,7 @@ begin
 
   if new.tipo = 'necesito_amor' then titulo := '💗 ' || quien || ' necesita amor'; cuerpo := 'Tocá para mandarle mimos';
   elsif new.tipo = 'pedir_ubicacion' then titulo := '📍 ' || quien || ' quiere saber dónde estás'; cuerpo := 'Tocá para compartir tu ubicación';
+  elsif new.tipo = 'mensaje' and txt like '🔥%' then titulo := '🔥 ' || quien || ' te mandó algo picante'; cuerpo := 'Abrí la app para verlo 😏';
   elsif new.tipo = 'mensaje' then titulo := '💬 ' || quien; cuerpo := txt;
   elsif new.tipo = 'frase' then titulo := '💌 Frase de ' || quien; cuerpo := txt;
   elsif new.tipo = 'ubicacion' and txt = 'en_vivo' then titulo := '📡 ' || quien || ' comparte su ubicación en vivo'; cuerpo := 'Tocá para ver dónde está ahora';
