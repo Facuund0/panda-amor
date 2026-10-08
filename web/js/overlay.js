@@ -171,7 +171,7 @@
       if (!E.otro || E.mascota.se_fue) return decir("¡Uy, me mareé! 😵");
       panda.reaccion("sorpresa"); P.vibrar("caricia");
       try { await D.accion("llegue", null); decir(`¡Uy, me mareé! Ya le avisé a ${nombres().otro} que llegaste 💗`); }
-      catch { decir("No pude avisarle, ¿hay internet?"); }
+      catch (e) { decir(/Acción desconocida|does not exist|check constraint/i.test(String(e?.message)) ? "Falta actualizar la base de datos (schema.sql en Supabase)." : "No pude avisarle, ¿hay internet?"); }
       return;
     }
     if (tipo === "triple") {

@@ -429,7 +429,7 @@
   // Mensaje de error entendible (por ej. si falta actualizar la base de datos)
   function msjError(e) {
     const t = String(e?.message || e || "");
-    if (/Could not find the function|schema cache|does not exist|violates check constraint/i.test(t)) return "Falta actualizar la base: ejecutá de nuevo schema.sql en Supabase";
+    if (/Could not find the function|schema cache|does not exist|violates check constraint|Acción desconocida/i.test(t)) return "Falta actualizar la base: ejecutá de nuevo schema.sql en Supabase";
     if (/Failed to fetch|NetworkError|network/i.test(t)) return "Sin internet 😢";
     return t;
   }
