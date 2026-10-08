@@ -29,6 +29,9 @@ class Puente(
     @JavascriptInterface fun posicion(): String = servicio?.posicionJson() ?: "{\"x\":0,\"y\":0}"
     @JavascriptInterface fun moverA(x: Int, y: Int, ms: Int) { servicio?.moverA(x, y, ms) }
     @JavascriptInterface fun tamano(w: Int, h: Int, x: Int, y: Int) { servicio?.tamano(w, h, x, y) }
+    // globo de texto del panda flotante (ventanita aparte; así la del panda no cambia de tamaño)
+    @JavascriptInterface fun globo(texto: String, ms: Int) { servicio?.mostrarGlobo(texto, ms) }
+    @JavascriptInterface fun ocultarGlobo() { servicio?.ocultarGlobo() }
 
     // ---------- avisos ----------
     @JavascriptInterface fun vibrar(patron: String) = Avisos.vibrar(ctx, patron)

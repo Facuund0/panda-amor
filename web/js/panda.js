@@ -280,7 +280,8 @@
         case "amor":
           this.expresion("corazon", 2.4); s.saltoY.empujar(-520); s.squash.empujar(6); this.corazones(8); break;
         case "necesita":
-          this.expresion("triste", 2.5); s.brazoI.obj = -150; s.brazoD.obj = 150;
+          // brazos para arriba hacia afuera (izquierdo gira positivo, derecho negativo)
+          this.expresion("triste", 2.5); s.brazoI.obj = 150; s.brazoD.obj = -150;
           setTimeout(() => { s.brazoI.obj = 0; s.brazoD.obj = 0; }, 2400); s.saltoY.empujar(-260); break;
         case "saludo":
           this.estado("saludando", true); setTimeout(() => this.estado("saludando", false), 1600); break;
@@ -385,7 +386,8 @@
       if (e.has("saludando")) bd = -130 + Math.sin(T * 12) * 22;
       if (e.has("comiendo")) { bi = -55 + Math.sin(T * 9) * 6; bd = 55 - Math.sin(T * 9) * 6; }
       if (e.has("hablando") && !e.has("saludando")) bd += Math.sin(T * 2.7) * 10 - this.nivelVoz * 15;
-      if (colgando) { bi = -140 + Math.sin(T * 4) * 10; bd = 140 - Math.sin(T * 4) * 10; }
+      // colgando (lo están arrastrando): brazos arriba y hacia afuera, que se vean al costado de la cabeza
+      if (colgando) { bi = 140 + Math.sin(T * 4) * 10; bd = -140 - Math.sin(T * 4) * 10; }
       if (Math.abs(s.brazoI.obj) < 100 || bi !== 0) s.brazoI.obj = bi;
       if (Math.abs(s.brazoD.obj) < 100 || bd !== 0) s.brazoD.obj = bd;
       const hombroY = 150;

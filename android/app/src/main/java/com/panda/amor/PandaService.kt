@@ -8,6 +8,8 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -23,6 +25,7 @@ import android.view.animation.LinearInterpolator
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import android.widget.TextView
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -136,6 +139,7 @@ class PandaService : Service() {
     fun ocultar(oculto: Boolean) = principal.post {
         if (!::capa.isInitialized) return@post
         capa.visibility = if (oculto) View.GONE else View.VISIBLE
+        if (oculto) globo?.visibility = View.GONE
         pausarDibujo(oculto || !pantallaPrendida)
     }
 
@@ -173,7 +177,62 @@ class PandaService : Service() {
         lp.y = lp.y.coerceIn(0, maxOf(0, m.heightPixels - lp.height))
     }
 
-    private fun actualizar() { try { wm.updateViewLayout(capa, lp) } catch (_: Exception) {} }
+    private fun actualizar() { try { wm.updateViewLayout(capa, lp) } catch (_: Exception) {}; posicionarGlobo() }
+
+    // ---------- GLOBO DE TEXTO (ventanita aparte, que no se puede tocar) ----------
+    // Antes el globo estaba adentro de la ventana del panda y había que agrandarla:
+    // en ese instante el panda se veía aplastado dentro de un recuadro. Así no cambia de tamaño.
+    private var globo: TextView? = null
+    private lateinit var lpGlobo: WindowManager.LayoutParams
+    private val esconderGlobo = Runnable { globo?.visibility = View.GONE }
+
+    fun mostrarGlobo(texto: String, ms: Int) = principal.post {
+        if (!::capa.isInitialized) return@post
+        val g = globo ?: crearGlobo() ?: return@post
+        g.text = texto
+        g.visibility = if (capa.visibility == View.VISIBLE) View.VISIBLE else View.GONE
+        posicionarGlobo()
+        principal.removeCallbacks(esconderGlobo)
+        principal.postDelayed(esconderGlobo, maxOf(1500, ms).toLong())
+    }
+
+    fun ocultarGlobo() = principal.post { principal.removeCallbacks(esconderGlobo); globo?.visibility = View.GONE }
+
+    private fun crearGlobo(): TextView? {
+        val t = TextView(this).apply {
+            setTextColor(Color.parseColor("#2b2340"))
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+            maxWidth = dp(240)
+            background = GradientDrawable().apply {
+                setColor(Color.WHITE); cornerRadius = dp(16).toFloat()
+                setStroke(dp(1), Color.parseColor("#22000000"))
+            }
+            visibility = View.GONE
+        }
+        lpGlobo = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT,
+        ).apply { gravity = Gravity.TOP or Gravity.START }
+        return try { wm.addView(t, lpGlobo); globo = t; t } catch (_: Exception) { null }
+    }
+
+    /** Pone el globo arriba de la cabeza del panda (o abajo si no entra). */
+    private fun posicionarGlobo() {
+        val g = globo ?: return
+        if (g.visibility != View.VISIBLE || !::lp.isInitialized) return
+        g.measure(View.MeasureSpec.makeMeasureSpec(dp(240), View.MeasureSpec.AT_MOST), View.MeasureSpec.UNSPECIFIED)
+        val w = g.measuredWidth; val h = g.measuredHeight; val m = medidas()
+        lpGlobo.x = (lp.x + lp.width / 2 - w / 2).coerceIn(dp(4), maxOf(dp(4), m.widthPixels - w - dp(4)))
+        var y = lp.y + (lp.height * 0.18f).roundToInt() - h   // la cabeza empieza un poco más abajo del borde
+        if (y < dp(28)) y = lp.y + lp.height
+        lpGlobo.y = y
+        try { wm.updateViewLayout(g, lpGlobo) } catch (_: Exception) {}
+    }
 
     fun moverA(xDp: Int, yDp: Int, ms: Int) = principal.post {
         if (!::capa.isInitialized) return@post
@@ -216,6 +275,7 @@ class PandaService : Service() {
         animacion?.cancel()
         if (::capa.isInitialized) {
             try { wm.removeView(capa) } catch (_: Exception) {}
+            globo?.let { try { wm.removeView(it) } catch (_: Exception) {} }
             try { web.destroy() } catch (_: Exception) {}
         }
         super.onDestroy()

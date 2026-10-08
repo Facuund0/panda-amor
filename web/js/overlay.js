@@ -78,14 +78,19 @@
   let tGlobo;
   async function decir(texto, { hablar = true, segundos } = {}) {
     if (!texto) return;
-    const t = tamPanda();
+    const ms = (segundos || Math.max(4, texto.length * 0.075)) * 1000;
     conGlobo = true;
-    tamano(Math.max(230, t.w + 40), t.h + 96);
-    const g = $("#globo");
-    g.textContent = texto; g.hidden = false;
     clearTimeout(tGlobo);
-    const cerrar = () => { g.hidden = true; conGlobo = false; tamano(t.w, t.h); };
-    tGlobo = setTimeout(cerrar, (segundos || Math.max(4, texto.length * 0.075)) * 1000);
+    // App nueva: el globo lo dibuja Android en una ventanita aparte (la del panda no se agranda)
+    if (P.globoNativo(texto, ms)) {
+      tGlobo = setTimeout(() => { conGlobo = false; }, ms);
+    } else {
+      const t = tamPanda();
+      tamano(Math.max(230, t.w + 40), t.h + 96);
+      const g = $("#globo");
+      g.textContent = texto; g.hidden = false;
+      tGlobo = setTimeout(() => { g.hidden = true; conGlobo = false; tamano(t.w, t.h); }, ms);
+    }
     // Si la app principal está abierta, habla ella: así no se pisan dos voces
     if (hablar && !P.appAbierta()) {
       panda.hablando(true);

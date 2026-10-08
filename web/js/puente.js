@@ -32,6 +32,8 @@
 
   const Puente = {
     esAndroid: () => !!A(),
+    // Globo nativo del panda flotante (app 1.23+). Devuelve false si no existe: se usa el globo web.
+    globoNativo(texto, ms) { try { if (A()?.globo) { A().globo(texto, Math.round(ms)); return true; } } catch {} return false; },
     // Panda flotante quieto: se guarda en el celular (en el navegador, en localStorage)
     quieto() {
       try { if (A()?.quieto) return !!A().quieto(); } catch {}
