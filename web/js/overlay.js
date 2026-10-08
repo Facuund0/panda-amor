@@ -283,8 +283,9 @@
   // ---------------------------------------------------------------
   async function arrancar() {
     if (!A) simulador();
-    // 24 cuadros por segundo alcanzan para que se vea fluido y gasta mucho menos batería
-    panda = new Panda($("#o-panda"), { etapa: 0, fps: 24 });
+    // 60 cuadros por segundo: igual de fluido que siempre, pero en pantallas de 120 Hz gasta la mitad.
+    // OJO: con menos (ej. 24) la boca se traba porque sus resortes son muy rápidos.
+    panda = new Panda($("#o-panda"), { etapa: 0, fps: 60 });
     try {
       D = await crearDatos();
       E = await D.iniciar();

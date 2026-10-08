@@ -103,6 +103,8 @@ class PandaService : Service() {
     private fun crearVentana() {
         web = WebView(this).apply {
             setBackgroundColor(Color.TRANSPARENT)
+            // necesario: sin esto, en algunos celulares partes del panda (los brazos) no se redibujan
+            setLayerType(View.LAYER_TYPE_HARDWARE, null)
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
