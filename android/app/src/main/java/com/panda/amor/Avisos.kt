@@ -56,7 +56,8 @@ object Avisos {
         val accion = when (tipo) {
             "necesito_amor" -> "necesito_amor"
             "pedir_ubicacion" -> "pregunta_ubicacion"
-            "mensaje", "frase" -> "mensajes"
+            "mensaje", "frase", "foto", "pregunta" -> "mensajes"
+            "sentir" -> "sentir"
             else -> ""
         }
         val codigo = tipo.hashCode() and 0xffff

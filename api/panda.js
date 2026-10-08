@@ -15,6 +15,20 @@ const ETAPAS = ["bebé", "cachorrito", "pequeño", "juguetón", "grande", "panda
 const LIMITES_ETAPA = [0, 300, 1200, 3000, 6000, 10000];
 const etapaDe = (amor) => LIMITES_ETAPA.reduce((i, d, n) => (amor >= d ? n : i), 0);
 
+// Cuidados estilo Pou (limpieza, energía, sueño, monedas). Igual que web/js/reglas.js
+function estadoPou(m) {
+  if (m.energia_base == null) return "";
+  const h = (f) => (Date.now() - new Date(f).getTime()) / 3600000;
+  const energia = m.durmiendo ? Math.min(100, m.energia_base + Math.floor(h(m.energia_desde) * 25)) : Math.max(0, m.energia_base - Math.floor(h(m.energia_desde) * 6));
+  const limpieza = Math.max(0, Math.min(1, 1 - (h(m.ultimo_banio) - 6) / 42));
+  const dias = h(m.ultimo_cuidado) / 24;
+  return `
+- ${m.durmiendo ? "Estás durmiendo (te despertaron para hablar, hablás con sueñito)" : `Energía: ${energia}/100${energia < 20 ? " (¡estás muy cansado, querés dormir!)" : ""}`}
+- Limpieza: ${Math.round(limpieza * 100)}%${limpieza < 0.3 ? " (estás sucio, querés un baño)" : ""}
+- Monedas de la pareja: ${m.monedas} · accesorios puestos: ${(m.puestos || []).join(", ") || "ninguno"}${dias >= 2 ? `
+- Hace ${Math.floor(dias)} días que nadie te cuida: te sentís solito y si pasan 7 días te vas a ir con tu mochila.` : ""}`;
+}
+
 function personalidad(est) {
   const m = est.mascota, yo = est.yo.nombre, otro = est.otro?.nombre || "su pareja";
   const e = etapaDe(m.amor);
@@ -39,7 +53,7 @@ Nunca inventes cosas que hizo ${otro}: solo sabés lo que figura abajo.
 Cómo estás ahora:
 - Etapa: ${ETAPAS[e]} · amor acumulado: ${m.amor} · racha: ${m.racha} días seguidos (mejor: ${m.mejor_racha})
 - Última comida: hace ${horas < 1 ? "menos de una hora" : Math.round(horas) + " horas"}${horas > 8 ? " (¡tenés hambre!)" : ""}
-- Ánimo según sus mensajes: ${m.animo}${m.animo_nota ? " (" + m.animo_nota + ")" : ""}
+- Ánimo según sus mensajes: ${m.animo}${m.animo_nota ? " (" + m.animo_nota + ")" : ""}${estadoPou(m)}
 - Hora en Argentina: ${new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Argentina/Buenos_Aires" })}`;
 }
 

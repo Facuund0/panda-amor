@@ -25,6 +25,9 @@
     caricia: [0, 50],
     comida: [0, 50],
     ubicacion: [0, 60],
+    sentir: [0, 120, 90, 120, 90, 120],
+    foto: [0, 80, 60, 80],
+    aviso: [0, 300, 200, 300],
   };
 
   const Puente = {

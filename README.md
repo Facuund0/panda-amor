@@ -12,6 +12,17 @@ Un osito panda virtual para una pareja. Crece con el amor que se dan: hay que da
 - 🔊 **Voz tierna de nene.** Voz "Daniela" (Argentina) con Piper, **dentro del celular**: sin internet y sin límites. También hay un "idioma panda".
 - 🌸 **Recuerdos.** Estadísticas, mensajes guardados y las etapas de crecimiento.
 
+**Estilo Pou (v2):**
+- 🎋🛁⚡💗 **Cuatro barras:** panza, limpieza, energía y cariño. Si no lo cuidan, se ensucia (manchas y olor), se cansa o se pone triste.
+- 🛁 **Bañarlo:** se frota con el dedo hasta llenarlo de espuma y después se enjuaga.
+- 😴 **Dormir:** se le apaga la luz y recupera energía. Durmiendo no come, no se baña ni juega.
+- 🪙 **Monedas** (compartidas): regalo diario, **desafíos del día** (mandar una foto, una frase, bañarlo…), el minijuego **"Atrapá el bambú"** y cada día de racha.
+- 🛍️ **Tienda:** comida para la **heladera** (manzana, sushi, torta…) y **accesorios** (moño, gorrito, corona, lentes, bufanda…).
+- 💭 **"¿Cómo estás?":** también para cosas tristes (estoy triste, te extraño, necesito un abrazo, perdón…). Al otro le llega un aviso con opciones para responder.
+- 📸 **Fotos** entre ustedes, comprimidas en el celular (~100 KB).
+- ❓ **Pregunta del día** para la pareja: la respuesta del otro se ve cuando respondés vos.
+- 🎒 **Si nadie lo cuida:** a los 3 días avisa, a los 5 da el último aviso y a los 7 **agarra su mochila y se va**. Hay que adoptar uno nuevo (los mensajes y recuerdos quedan).
+
 ---
 
 ## 📁 Qué hay en cada carpeta
@@ -93,7 +104,7 @@ Cada uno entra a **aistudio.google.com** con **su propia cuenta de Google** y cr
 - la frase del día (1 por día);
 - para entender el ánimo (1 cada 8 mensajes entre ustedes).
 
-**No gastan nada:** comer, mimos, racha, vibrar, ubicación, mensajes y la **voz**, que funciona en el celular.
+**No gastan nada:** comer, mimos, racha, vibrar, ubicación, mensajes, baño, dormir, tienda, desafíos, minijuego, fotos y la **voz**, que funciona en el celular.
 
 - Cada persona tiene un tope diario (`LIMITE_GEMINI_DIARIO`, por defecto 60). Se ve en **Ajustes → Inteligencia artificial**. Si se llega al tope, el panda responde con frases propias hasta el día siguiente. El cupo de Google se renueva a la medianoche del Pacífico (4–5 AM en Argentina).
 - En el plan gratis, Google puede usar los mensajes que se envían a Gemini para mejorar sus productos.
@@ -101,6 +112,7 @@ Cada uno entra a **aistudio.google.com** con **su propia cuenta de Google** y cr
 **Supabase gratis:** 500 MB de base, que es muchísimo para esto: cada acción ocupa menos de 1 KB. Igual hay **limpieza automática diaria**:
 - borra eventos de más de 180 días;
 - borra frases de más de 2 años;
+- borra las fotos de más de 120 días (salvo las guardadas con 💖);
 - **nunca borra los mensajes guardados con 💖**;
 - si la base pasa los 400 MB, borra lo más viejo.
 
@@ -115,6 +127,9 @@ Pedile cambios a la IA de VS Code (Copilot, Claude, etc.). El archivo **AGENTS.m
 - "Agregá un minijuego para ganar amor."
 
 Los cambios en `web/` y `api/` se publican solos al subirlos a GitHub (Vercel). Los cambios en `android/` necesitan compilar el APK de nuevo (Actions).
+
+## 🧩 Si cambian la base de datos
+Cada vez que `supabase/schema.sql` cambia (por ejemplo, con la versión estilo Pou), hay que **volver a ejecutarlo entero** en Supabase → SQL Editor → Run. No se pierde nada: agrega lo nuevo y deja lo que ya había.
 
 ## 🔄 Actualizaciones
 - **web/ y api/**: se actualizan solos al subir a GitHub (Vercel). No hace falta reinstalar nada.

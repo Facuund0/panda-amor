@@ -98,7 +98,7 @@
   // ---------------------------------------------------------------
   async function pasear() {
     const an = R.animoVisible(E.mascota);
-    if (ocupado || conGlobo || an.clave === "dormido") return;
+    if (ocupado || conGlobo || an.clave === "dormido" || E.mascota.se_fue) return;
     ocupado = true;
     const p = pantalla(), t = tam(), actual = pos();
     let x, y;
@@ -125,12 +125,16 @@
     setTimeout(cicloPaseo, 12000 + Math.random() * 23000);
   }
 
-  // Cada tanto avisa si tiene hambre o extraña mimos (sin gastar IA)
+  // Cada tanto avisa si tiene hambre, está sucio, cansado o extraña mimos (sin gastar IA)
   function cicloNecesidades() {
-    const an = R.animoVisible(E.mascota);
-    if (!ocupado && !conGlobo) {
-      if (an.clave === "hambriento") { panda.reaccion("triste"); decir(F.frase("hambre", nombres()), { hablar: R.hambre(E.mascota) > 0.75 }); }
-      else if (an.clave === "triste") decir(F.frase("triste", nombres()), { hablar: false });
+    const m = E.mascota, an = R.animoVisible(m);
+    if (!ocupado && !conGlobo && !m.se_fue) {
+      if (m.aviso_abandono > 0) { panda.reaccion("triste"); decir(F.frase(`aviso_abandono_${Math.min(2, m.aviso_abandono)}`, nombres())); }
+      else if (an.clave === "hambriento") { panda.reaccion("triste"); decir(F.frase("hambre", nombres())); }
+      else if (an.clave === "triste") decir(F.frase("triste", nombres()));
+      else if (an.clave === "sucio") decir(F.frase("sucio", nombres()));
+      else if (an.clave === "cansado") { panda.reaccion("bostezo"); decir(F.frase("cansado", nombres())); }
+      else if (an.clave === "sueno" && Math.random() < 0.5) { panda.reaccion("bostezo"); decir(F.frase("sueno", nombres())); }
     }
     setTimeout(cicloNecesidades, (8 + Math.random() * 7) * 60000);
   }
@@ -138,9 +142,12 @@
   const nombres = () => ({ yo: E?.yo?.nombre || "", otro: E?.otro?.nombre || "tu pareja", panda: E?.mascota?.nombre || "Pandi" });
 
   function refrescarAspecto() {
-    const et = R.etapaDe(E.mascota.amor), antes = panda.etapa;
+    const m = E.mascota, et = R.etapaDe(m.amor), antes = panda.etapa;
     panda.setEtapa(et.indice);
-    panda.setAnimo(R.animoVisible(E.mascota).clave);
+    panda.setAnimo(R.animoVisible(m).clave);
+    panda.setAccesorios(m.puestos || []);
+    panda.setLimpieza(R.limpieza(m));
+    panda.setMochila(!!m.se_fue);
     ajustarPanda();
     if (et.indice > antes) decir(F.frase("crecer", { etapa: et.nombre }));
   }
@@ -154,12 +161,16 @@
     if (tipo === "arrastre_fin") { panda.colgando(false); return; }
     if (tipo === "doble") return P.abrirApp("");
     if (tipo === "tap") {
+      if (E.mascota.se_fue) return decir("Me fui… 🎒 Abran la app para adoptar un panda nuevo.");
       panda.reaccion("caricia");
       P.vibrar("caricia");
       try {
         const r = await D.accion("caricia");
+        if (r.mascota) { E.mascota = { ...E.mascota, ...r.mascota }; refrescarAspecto(); }
         if (r.nota === "racha") { panda.reaccion("amor"); decir(F.frase("racha", { ...nombres(), racha: r.racha })); }
-        else if (Math.random() < 0.35) decir(F.frase(r.nota === "tope_caricias" ? "tope_caricias" : "caricia", nombres()), { hablar: Math.random() < 0.5 });
+        else if (E.mascota.durmiendo) { if (Math.random() < 0.3) decir(F.frase("durmiendo_toque", nombres())); }
+        // cuando muestra el globo, siempre habla (antes a veces quedaba mudo)
+        else if (r.nota === "tope_caricias" || Math.random() < 0.35) decir(F.frase(r.nota === "tope_caricias" ? "tope_caricias" : "caricia", nombres()));
       } catch {}
       return;
     }
@@ -167,7 +178,7 @@
       if (!E.otro) return decir("Todavía falta que se una tu pareja.");
       panda.reaccion("necesita");
       try { await D.accion("necesito_amor"); decir(F.frase("necesito_amor_enviado", nombres())); }
-      catch { decir("No pude avisarle, ¿hay internet?", { hablar: false }); }
+      catch { decir("No pude avisarle, ¿hay internet?"); }
     }
   };
 
@@ -178,31 +189,55 @@
     if (tipo === "mascota") { E.mascota = { ...E.mascota, ...fila }; return refrescarAspecto(); }
     if (tipo !== "evento" || fila.de === E.yo.id) return;
     const ev = fila;
-    if (!E.otro || ev.tipo === "sistema") { E = await D.estado(); refrescarAspecto(); if (ev.tipo === "sistema") return; }
-    const n = { ...nombres(), texto: ev.texto || "" };
-    const texto = F.deOtro(ev.tipo, n);
+    if (["compra", "desafio"].includes(ev.tipo)) return;
+    if (!E.otro || ev.tipo === "sistema") {
+      E = await D.estado(); refrescarAspecto();
+      if (ev.tipo === "sistema") {
+        // avisos de abandono: notificación aunque la app esté cerrada
+        const t = ev.texto || "", np = E.mascota.nombre;
+        if (t.startsWith("aviso_abandono|")) {
+          const nivel = t.split("|")[1] === "2" ? 2 : 1;
+          P.vibrar("aviso");
+          P.notificar(nivel === 2 ? `🎒 ${np} está por irse` : `🥺 ${np} se siente solo`, nivel === 2 ? "Última oportunidad: cuídenlo hoy o se va." : "Hace días que nadie lo cuida.", "aviso");
+          panda.reaccion("triste"); decir(F.frase(`aviso_abandono_${nivel}`, nombres()));
+        } else if (t.startsWith("se_fue|")) {
+          P.notificar(`🎒 ${t.split("|")[1]} se fue`, "Nadie lo cuidó por 7 días. Abran la app para adoptar uno nuevo.", "aviso");
+          decir("Me voy… cuídense mucho. 🎒");
+        }
+        return;
+      }
+    }
+    if (["banio", "dormir", "despertar", "comer", "juego"].includes(ev.tipo)) { try { E = await D.estado(); refrescarAspecto(); } catch {} }
+    const n = { ...nombres(), texto: ev.texto || "", item: R.TIENDA[ev.texto]?.nombre.toLowerCase() || "" };
+    let texto = F.deOtro(ev.tipo, n);
+    const sent = ev.tipo === "sentir" ? F.SENTIMIENTOS.find((x) => String(ev.texto).startsWith(x.emoji)) : null;
+    if (sent) texto = (F.RESPUESTA_SENTIR[sent.id] || texto).replace(/\{otro\}/g, n.otro);
     P.vibrar(ev.tipo);
     // notificación del sistema (la app nativa la omite si la app principal está abierta)
     const titulos = {
       necesito_amor: `💗 ${n.otro} necesita amor`, pedir_ubicacion: `📍 ${n.otro} quiere saber dónde estás`,
       mensaje: `💬 ${n.otro}`, frase: `💌 Frase de ${n.otro}`, caricia: `🤗 ${n.otro} le hizo mimos a ${n.panda}`,
       comida: `🎋 ${n.otro} le dio bambú a ${n.panda}`, ubicacion: `📍 ${n.otro} compartió su ubicación`,
+      sentir: `💭 ${n.otro}: ${sent ? sent.texto : "cómo se siente"}`, foto: `📸 ${n.otro} te mandó una foto`,
+      pregunta: `❓ ${n.otro} respondió la pregunta del día`,
     };
-    const cuerpo = { necesito_amor: "Tocá para mandarle mimos", pedir_ubicacion: "Tocá para compartir tu ubicación", mensaje: ev.texto, frase: ev.texto };
-    if (["necesito_amor", "pedir_ubicacion", "mensaje", "frase", "ubicacion"].includes(ev.tipo) && !(ev.tipo === "pedir_ubicacion" && E.yo.compartir_auto)) {
+    const cuerpo = { necesito_amor: "Tocá para mandarle mimos", pedir_ubicacion: "Tocá para compartir tu ubicación", mensaje: ev.texto, frase: ev.texto,
+      sentir: String(ev.texto || "").split(" · ").slice(1).join(" · ") || "Tocá para responderle", foto: ev.texto && ev.texto !== "📸" ? ev.texto : "Tocá para verla", pregunta: "Respondé para ver qué puso" };
+    if (["necesito_amor", "pedir_ubicacion", "mensaje", "frase", "ubicacion", "sentir", "foto", "pregunta"].includes(ev.tipo) && !(ev.tipo === "pedir_ubicacion" && E.yo.compartir_auto)) {
       P.notificar(titulos[ev.tipo], cuerpo[ev.tipo] || "", ev.tipo);
     }
     // reacción del panda
-    const reac = { caricia: "caricia", comida: "comida", frase: "amor", necesito_amor: "necesita", mensaje: "sorpresa" }[ev.tipo];
+    const reac = { caricia: "caricia", comida: "comida", comer: "comida", frase: "amor", necesito_amor: "necesita", mensaje: "sorpresa",
+      banio: "amor", juego: "amor", foto: "sorpresa", despertar: "saludo", sentir: sent && F.TRISTES.includes(sent.id) ? "triste" : "amor" }[ev.tipo];
     if (reac) panda.reaccion(reac);
     if (ev.tipo === "pedir_ubicacion" && E.yo.compartir_auto) {
       try {
         const u = await P.obtenerUbicacion();
         await D.compartirUbicacion(u.lat, u.lng, u.prec);
-        return decir(`Le conté a ${n.otro} dónde estás.`, { hablar: false });
+        return decir(`Le conté a ${n.otro} dónde estás.`);
       } catch { /* si falla, queda la notificación normal */ P.notificar(titulos.pedir_ubicacion, cuerpo.pedir_ubicacion, "pedir_ubicacion"); }
     }
-    if (texto) decir(texto, { hablar: ev.tipo !== "ubicacion" });
+    if (texto) decir(texto);
   }
 
   // ---------------------------------------------------------------
@@ -253,7 +288,7 @@
     const p = pantalla(), t = tamPanda();
     if (!A) { ventanaSim.x = p.w - t.w - 20; ventanaSim.y = p.h - t.h - MARGEN_ABAJO; aplicarSim(0); }
     D.suscribir((x) => alRecibir(x).catch(() => {}));
-    setTimeout(() => decir(F.saludo(nombres()), { hablar: false, segundos: 5 }), 800);
+    if (!E.mascota.se_fue && !E.mascota.durmiendo) setTimeout(() => decir(F.saludo(nombres()), { hablar: false, segundos: 5 }), 800);
     setTimeout(cicloPaseo, 4000);
     setTimeout(cicloNecesidades, 90000);
     setInterval(async () => { try { E = await D.estado(); refrescarAspecto(); } catch {} }, 10 * 60000);

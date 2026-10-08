@@ -88,6 +88,44 @@ create table if not exists public.uso_gemini (
 );
 
 -- ---------------------------------------------------------------------
+--  AGREGADOS v2 (estilo Pou): cuidados, monedas, tienda, fotos, abandono
+--  Con "add column if not exists" se puede re-ejecutar sin perder nada.
+-- ---------------------------------------------------------------------
+alter table public.mascotas add column if not exists monedas        int not null default 50;
+alter table public.mascotas add column if not exists ultimo_banio   timestamptz not null default now();
+alter table public.mascotas add column if not exists durmiendo      boolean not null default false;
+alter table public.mascotas add column if not exists energia_base   int not null default 100;   -- energía en "energia_desde"
+alter table public.mascotas add column if not exists energia_desde  timestamptz not null default now();
+alter table public.mascotas add column if not exists inventario     jsonb not null default '{"manzana": 2}'::jsonb; -- heladera
+alter table public.mascotas add column if not exists accesorios     jsonb not null default '[]'::jsonb; -- comprados
+alter table public.mascotas add column if not exists puestos        jsonb not null default '[]'::jsonb; -- los que tiene puestos
+alter table public.mascotas add column if not exists ultimo_cuidado timestamptz not null default now();
+alter table public.mascotas add column if not exists aviso_abandono int not null default 0;     -- 0 nada · 1 primer aviso · 2 último aviso
+alter table public.mascotas add column if not exists se_fue         timestamptz;                -- si no lo cuidan 7 días, se va
+alter table public.mascotas add column if not exists generacion     int not null default 1;     -- cuántos pandas tuvieron
+alter table public.mascotas add column if not exists banios_total   int not null default 0;
+alter table public.mascotas add column if not exists juegos_total   int not null default 0;
+
+alter table public.miembros add column if not exists juegos_hoy int not null default 0;
+alter table public.miembros add column if not exists sentir_hoy int not null default 0;
+
+alter table public.eventos add column if not exists ref bigint;  -- para las fotos: id en public.fotos
+alter table public.eventos drop constraint if exists eventos_tipo_check;
+alter table public.eventos add constraint eventos_tipo_check check (tipo in
+  ('comida','caricia','frase','mensaje','necesito_amor','pedir_ubicacion','ubicacion','sistema',
+   'banio','dormir','despertar','comer','juego','sentir','pregunta','foto','compra','desafio'));
+
+-- Fotos que se mandan (comprimidas en el celular, ~100 KB). Se borran a los 120 días salvo las guardadas con 💖.
+create table if not exists public.fotos (
+  id         bigint generated always as identity primary key,
+  pareja_id  uuid not null references public.parejas (id) on delete cascade,
+  de         uuid not null,
+  datos      text not null check (char_length(datos) <= 450000), -- "data:image/jpeg;base64,..."
+  creado     timestamptz not null default now()
+);
+create index if not exists fotos_pareja_fecha on public.fotos (pareja_id, creado desc);
+
+-- ---------------------------------------------------------------------
 --  REGLAS DEL JUEGO (mantener igual que web/js/reglas.js)
 -- ---------------------------------------------------------------------
 --  comida:   +5 amor (como máximo 1 cada 2 h; si no, "está lleno")
@@ -97,6 +135,20 @@ create table if not exists public.uso_gemini (
 --  racha:    el día cuenta cuando LOS DOS hicieron algo de amor.
 --            Cada día de racha suma 10 + 2 × racha (máx. 40) de amor extra.
 --  etapas:   0 bebé · 300 cachorrito · 1200 pequeño · 3000 juguetón · 6000 grande · 10000 panda sabio
+--
+--  v2 (estilo Pou):
+--  banio:     +4 amor (si no se bañó en las últimas 3 h; si no, "ya está limpito")
+--  dormir:    +2 amor si tenía menos de 70 de energía. Durmiendo recupera 25 de energía por hora;
+--             despierto pierde 6 por hora. Durmiendo no se puede comer, bañar ni jugar.
+--  comer:     una comida de la heladera (ver item_info). No come si comió hace menos de 2 h.
+--  juego:     +3 amor y monedas = puntaje / 3 (máx. 20), hasta 5 juegos con premio por persona por día.
+--             Cuesta 10 de energía y necesita al menos 10.
+--  sentir:    "¿cómo estás?" (triste, te extraño...): +3 amor, hasta 5 por persona por día.
+--  pregunta:  respuesta a la pregunta del día: +5 amor (una por persona por día).
+--  foto:      +5 amor (las 3 primeras del día). Máximo 10 fotos por persona por día.
+--  racha:     además del amor, cada día de racha da +5 monedas.
+--  desafíos:  3 por persona por día (1 "de pareja" + 2 "de cuidado"); regalo diario de 10 monedas.
+--  abandono:  días sin que nadie lo cuide → 3: primer aviso · 5: último aviso · 7: se va.
 -- ---------------------------------------------------------------------
 
 create or replace function public.hoy() returns date
@@ -204,7 +256,46 @@ begin
   return json_build_object('ok', true);
 end $$;
 
--- La acción principal: alimentar, acariciar, mandar frases, mensajes y avisos
+-- Catálogo de la tienda (mantener igual que TIENDA en web/js/reglas.js)
+--  comida:    precio en monedas · horas de panza llena · amor · energía extra · si da cariño
+--  accesorio: precio · lugar (uno por lugar: cabeza, cara, cuello)
+create or replace function public.item_info(item text) returns jsonb
+language sql immutable as $$
+  select (case item
+    when 'manzana'     then '{"tipo":"comida","precio":8,"horas":4,"amor":1,"energia":0}'
+    when 'zanahoria'   then '{"tipo":"comida","precio":6,"horas":3,"amor":1,"energia":0}'
+    when 'leche'       then '{"tipo":"comida","precio":10,"horas":3,"amor":1,"energia":15}'
+    when 'te'          then '{"tipo":"comida","precio":12,"horas":2,"amor":1,"energia":25}'
+    when 'helado'      then '{"tipo":"comida","precio":15,"horas":3,"amor":2,"energia":0,"carino":true}'
+    when 'dumpling'    then '{"tipo":"comida","precio":18,"horas":7,"amor":2,"energia":0}'
+    when 'sushi'       then '{"tipo":"comida","precio":22,"horas":8,"amor":3,"energia":0}'
+    when 'torta'       then '{"tipo":"comida","precio":30,"horas":6,"amor":5,"energia":0,"carino":true}'
+    when 'mono'        then '{"tipo":"accesorio","precio":40,"lugar":"cabeza"}'
+    when 'flor'        then '{"tipo":"accesorio","precio":35,"lugar":"cabeza"}'
+    when 'gorro'       then '{"tipo":"accesorio","precio":60,"lugar":"cabeza"}'
+    when 'auriculares' then '{"tipo":"accesorio","precio":90,"lugar":"cabeza"}'
+    when 'corona'      then '{"tipo":"accesorio","precio":150,"lugar":"cabeza"}'
+    when 'lentes'      then '{"tipo":"accesorio","precio":80,"lugar":"cara"}'
+    when 'bufanda'     then '{"tipo":"accesorio","precio":70,"lugar":"cuello"}'
+    when 'pajarita'    then '{"tipo":"accesorio","precio":50,"lugar":"cuello"}'
+  end)::jsonb
+$$;
+
+-- Energía ahora (0..100): durmiendo sube 25 por hora, despierto baja 6 por hora
+create or replace function public.energia_actual(base int, desde timestamptz, dormido boolean) returns int
+language sql stable as $$
+  select case when dormido
+    then least(100, base + floor(extract(epoch from now() - desde) / 3600 * 25))::int
+    else greatest(0, base - floor(extract(epoch from now() - desde) / 3600 * 6))::int end
+$$;
+
+-- Comienzo del día de hoy (hora argentina)
+create or replace function public.inicio_hoy() returns timestamptz
+language sql stable as $$
+  select (public.hoy()::timestamp at time zone 'America/Argentina/Buenos_Aires')
+$$;
+
+-- La acción principal: alimentar, acariciar, mandar frases, mensajes, avisos y los cuidados nuevos
 create or replace function public.registrar_accion(tipo_accion text, texto_accion text default null) returns json
 language plpgsql security definer set search_path = public as $$
 declare
@@ -213,25 +304,42 @@ declare
   d  date := public.hoy();
   suma int := 0;
   extra int := 0;
+  ganadas int := 0;
   nota text := null;
   ev bigint;
   analizar boolean := false;
-  es_amor boolean := tipo_accion in ('comida','caricia','frase','mensaje');
+  es_amor boolean := tipo_accion in ('comida','caricia','frase','mensaje','banio','dormir','comer','juego','sentir','pregunta','foto');
+  en int;
+  info jsonb;
+  cant int;
+  puntaje int;
+  texto_ev text := nullif(trim(texto_accion), '');
+  ref_foto bigint := nullif(current_setting('panda.ref', true), '')::bigint;
+  fila json;
 begin
   select * into yo from public.miembros where user_id = auth.uid() for update;
   if not found then raise exception 'No estás en una pareja'; end if;
-  if tipo_accion not in ('comida','caricia','frase','mensaje','necesito_amor','pedir_ubicacion') then
+  if tipo_accion not in ('comida','caricia','frase','mensaje','necesito_amor','pedir_ubicacion',
+                         'banio','dormir','despertar','comer','juego','sentir','pregunta','foto') then
     raise exception 'Acción desconocida: %', tipo_accion;
   end if;
-  if tipo_accion in ('frase','mensaje') and coalesce(trim(texto_accion), '') = '' then
+  if tipo_accion in ('frase','mensaje','sentir','pregunta','comer','juego') and texto_ev is null then
     raise exception 'Falta el texto';
   end if;
+  if tipo_accion = 'foto' and ref_foto is null then raise exception 'Las fotos se mandan con enviar_foto'; end if;
 
   select * into m from public.mascotas where pareja_id = yo.pareja_id for update;
+  if m.se_fue is not null and tipo_accion not in ('mensaje','frase','sentir','necesito_amor','pedir_ubicacion','foto','pregunta') then
+    raise exception 'Tu panda se fue 🎒 Adopten uno nuevo';
+  end if;
+  en := public.energia_actual(m.energia_base, m.energia_desde, m.durmiendo);
+  if m.durmiendo and tipo_accion in ('comida','comer','banio','juego') then
+    raise exception 'Shh… está durmiendo 😴 Despertalo primero';
+  end if;
 
   -- contadores diarios por persona
   if yo.dia_contadores is distinct from d then
-    yo.caricias_hoy := 0; yo.mensajes_hoy := 0; yo.dia_contadores := d;
+    yo.caricias_hoy := 0; yo.mensajes_hoy := 0; yo.juegos_hoy := 0; yo.sentir_hoy := 0; yo.dia_contadores := d;
   end if;
 
   if tipo_accion = 'comida' then
@@ -252,6 +360,63 @@ begin
     yo.mensajes_hoy := yo.mensajes_hoy + 1;
     if yo.mensajes_hoy <= 15 then suma := 3; end if;
     m.mensajes_sin_analizar := m.mensajes_sin_analizar + 1;
+
+  -- ---------- v2: cuidados estilo Pou ----------
+  elsif tipo_accion = 'banio' then
+    if now() - m.ultimo_banio < interval '3 hours' then
+      nota := 'limpio';
+    else
+      suma := 4; m.ultimo_banio := now(); m.banios_total := m.banios_total + 1;
+    end if;
+  elsif tipo_accion = 'dormir' then
+    if m.durmiendo then nota := 'ya_duerme';
+    else
+      if en < 70 then suma := 2; else nota := 'sin_sueno'; end if;
+      m.energia_base := en; m.energia_desde := now(); m.durmiendo := true;
+    end if;
+  elsif tipo_accion = 'despertar' then
+    if not m.durmiendo then nota := 'ya_despierto';
+    else
+      if en < 50 then nota := 'sueno'; end if;
+      m.energia_base := en; m.energia_desde := now(); m.durmiendo := false;
+    end if;
+  elsif tipo_accion = 'comer' then
+    info := public.item_info(texto_ev);
+    if info is null or info->>'tipo' <> 'comida' then raise exception 'Esa comida no existe'; end if;
+    cant := coalesce((m.inventario->>texto_ev)::int, 0);
+    if cant < 1 then raise exception 'No queda en la heladera. Comprá en la tienda 🛍️'; end if;
+    if now() - m.ultima_comida < interval '2 hours' then
+      nota := 'lleno'; -- no la come: sigue en la heladera
+    else
+      m.inventario := jsonb_set(m.inventario, array[texto_ev], to_jsonb(cant - 1));
+      m.ultima_comida := least(now(), greatest(m.ultima_comida, now() - interval '24 hours')
+                               + make_interval(hours => (info->>'horas')::int));
+      suma := (info->>'amor')::int;
+      if (info->>'energia')::int > 0 then
+        m.energia_base := least(100, en + (info->>'energia')::int); m.energia_desde := now();
+      end if;
+      if coalesce((info->>'carino')::boolean, false) then m.ultima_caricia := now(); end if;
+      m.comidas_total := m.comidas_total + 1;
+    end if;
+  elsif tipo_accion = 'juego' then
+    if texto_ev !~ '^\d{1,4}$' then raise exception 'Puntaje inválido'; end if;
+    puntaje := least(300, texto_ev::int);
+    if en < 10 then raise exception 'Está muy cansado para jugar 😴 Acostalo a dormir'; end if;
+    yo.juegos_hoy := yo.juegos_hoy + 1;
+    if yo.juegos_hoy <= 5 then suma := 3; ganadas := least(20, puntaje / 3); else nota := 'tope_juegos'; end if;
+    m.energia_base := en - 10; m.energia_desde := now(); m.juegos_total := m.juegos_total + 1;
+    texto_ev := puntaje::text;
+  elsif tipo_accion = 'sentir' then
+    yo.sentir_hoy := yo.sentir_hoy + 1;
+    if yo.sentir_hoy <= 5 then suma := 3; end if;
+    m.mensajes_sin_analizar := m.mensajes_sin_analizar + 1;
+  elsif tipo_accion = 'pregunta' then
+    if exists (select 1 from public.eventos where de = yo.user_id and tipo = 'pregunta' and creado >= public.inicio_hoy()) then
+      raise exception 'Ya respondiste la pregunta de hoy';
+    end if;
+    suma := 5;
+  elsif tipo_accion = 'foto' then
+    if (select count(*) from public.fotos where de = yo.user_id and creado >= public.inicio_hoy()) <= 3 then suma := 5; end if;
   end if;
 
   -- racha: el día cuenta cuando los dos hicieron algo de amor
@@ -266,29 +431,40 @@ begin
       m.racha_dia := d;
       m.mejor_racha := greatest(m.mejor_racha, m.racha);
       extra := least(40, 10 + 2 * m.racha);
+      ganadas := ganadas + 5;
       nota := coalesce(nota, 'racha');
     end if;
+    -- lo cuidaron: se olvida de irse
+    if m.se_fue is null then m.ultimo_cuidado := now(); m.aviso_abandono := 0; end if;
   end if;
 
   m.amor := m.amor + suma + extra;
+  m.monedas := m.monedas + ganadas;
   if m.mensajes_sin_analizar >= 8 then analizar := true; end if;
   m.actualizada := now();
 
   update public.miembros set ultimo_dia = yo.ultimo_dia, caricias_hoy = yo.caricias_hoy,
-         mensajes_hoy = yo.mensajes_hoy, dia_contadores = yo.dia_contadores
+         mensajes_hoy = yo.mensajes_hoy, juegos_hoy = yo.juegos_hoy, sentir_hoy = yo.sentir_hoy,
+         dia_contadores = yo.dia_contadores
    where user_id = yo.user_id;
   update public.mascotas set amor = m.amor, racha = m.racha, mejor_racha = m.mejor_racha,
          racha_dia = m.racha_dia, ultima_comida = m.ultima_comida, ultima_caricia = m.ultima_caricia,
          comidas_total = m.comidas_total, caricias_total = m.caricias_total, frases_total = m.frases_total,
-         mensajes_sin_analizar = m.mensajes_sin_analizar, actualizada = m.actualizada
+         mensajes_sin_analizar = m.mensajes_sin_analizar, actualizada = m.actualizada,
+         monedas = m.monedas, ultimo_banio = m.ultimo_banio, durmiendo = m.durmiendo,
+         energia_base = m.energia_base, energia_desde = m.energia_desde, inventario = m.inventario,
+         ultimo_cuidado = m.ultimo_cuidado, aviso_abandono = m.aviso_abandono,
+         banios_total = m.banios_total, juegos_total = m.juegos_total
    where pareja_id = m.pareja_id;
 
-  insert into public.eventos (pareja_id, de, tipo, texto)
-    values (yo.pareja_id, yo.user_id, tipo_accion, nullif(trim(texto_accion), ''))
+  insert into public.eventos (pareja_id, de, tipo, texto, ref)
+    values (yo.pareja_id, yo.user_id, tipo_accion, texto_ev, case when tipo_accion = 'foto' then ref_foto end)
     returning id into ev;
 
+  select row_to_json(x) into fila from public.mascotas x where pareja_id = m.pareja_id;
   return json_build_object('evento', ev, 'sumo', suma, 'extra', extra, 'nota', nota,
-                           'analizar', analizar, 'amor', m.amor, 'racha', m.racha);
+                           'analizar', analizar, 'amor', m.amor, 'racha', m.racha,
+                           'monedas_ganadas', ganadas, 'mascota', fila);
 end $$;
 
 -- Compartir mi ubicación (solo la ve mi pareja; se guarda solo la última)
@@ -379,12 +555,189 @@ language sql security definer set search_path = public as $$
 $$;
 
 -- ---------------------------------------------------------------------
+--  TIENDA: comprar comida (va a la heladera) y accesorios
+-- ---------------------------------------------------------------------
+create or replace function public.comprar(item text) returns json
+language plpgsql security definer set search_path = public as $$
+declare p uuid := public.mi_pareja(); m public.mascotas; info jsonb := public.item_info(item); precio int;
+begin
+  if p is null then raise exception 'No estás en una pareja'; end if;
+  if info is null then raise exception 'Eso no está en la tienda'; end if;
+  select * into m from public.mascotas where pareja_id = p for update;
+  if m.se_fue is not null then raise exception 'Tu panda se fue 🎒 Adopten uno nuevo'; end if;
+  precio := (info->>'precio')::int;
+  if info->>'tipo' = 'accesorio' and m.accesorios ? item then raise exception 'Ya lo tienen'; end if;
+  if m.monedas < precio then raise exception 'Les faltan % monedas 🪙', precio - m.monedas; end if;
+  if info->>'tipo' = 'comida' then
+    update public.mascotas set monedas = monedas - precio,
+      inventario = jsonb_set(inventario, array[item], to_jsonb(coalesce((inventario->>item)::int, 0) + 1)),
+      actualizada = now()
+     where pareja_id = p;
+  else
+    update public.mascotas set monedas = monedas - precio, accesorios = accesorios || to_jsonb(item), actualizada = now()
+     where pareja_id = p;
+  end if;
+  insert into public.eventos (pareja_id, de, tipo, texto) values (p, auth.uid(), 'compra', item);
+  return (select row_to_json(x) from public.mascotas x where pareja_id = p);
+end $$;
+
+-- Ponerle o sacarle un accesorio (uno por lugar: cabeza, cara, cuello)
+create or replace function public.poner_accesorio(item text, poner boolean) returns json
+language plpgsql security definer set search_path = public as $$
+declare p uuid := public.mi_pareja(); m public.mascotas; lugar text := public.item_info(item)->>'lugar'; nuevos jsonb;
+begin
+  if p is null then raise exception 'No estás en una pareja'; end if;
+  select * into m from public.mascotas where pareja_id = p for update;
+  if poner and not (m.accesorios ? item) then raise exception 'Primero hay que comprarlo'; end if;
+  select coalesce(jsonb_agg(x), '[]'::jsonb) into nuevos
+    from jsonb_array_elements_text(m.puestos) x
+   where x <> item and (not poner or public.item_info(x)->>'lugar' is distinct from lugar);
+  if poner then nuevos := nuevos || to_jsonb(item); end if;
+  update public.mascotas set puestos = nuevos, actualizada = now() where pareja_id = p;
+  return (select row_to_json(x) from public.mascotas x where pareja_id = p);
+end $$;
+
+-- ---------------------------------------------------------------------
+--  DESAFÍOS DEL DÍA (dan monedas). Mantener igual que DESAFIOS en web/js/reglas.js
+--  Cada persona tiene 3 por día: 1 "de pareja" + 2 "de cuidado".
+-- ---------------------------------------------------------------------
+create or replace function public.desafios_hoy(lugar int) returns table (clave text, meta int, premio int, tipos text[])
+language sql stable as $$
+  (select * from (values
+     ('foto', 1, 30, array['foto']), ('frase', 1, 15, array['frase']), ('mensajes', 3, 15, array['mensaje']),
+     ('sentir', 1, 15, array['sentir']), ('pregunta', 1, 15, array['pregunta'])) v(clave, meta, premio, tipos)
+   order by md5(public.hoy()::text || lugar::text || v.clave) limit 1)
+  union all
+  (select * from (values
+     ('mimos', 5, 10, array['caricia']), ('banio', 1, 10, array['banio']), ('comer', 2, 10, array['comida','comer']),
+     ('jugar', 1, 15, array['juego']), ('dormir', 1, 10, array['dormir'])) v(clave, meta, premio, tipos)
+   order by md5(public.hoy()::text || lugar::text || v.clave) limit 2)
+$$;
+
+create or replace function public.mis_desafios() returns json
+language plpgsql stable security definer set search_path = public as $$
+declare yo public.miembros;
+begin
+  select * into yo from public.miembros where user_id = auth.uid();
+  if not found then raise exception 'No estás en una pareja'; end if;
+  return json_build_object(
+    'regalo_cobrado', exists (select 1 from public.eventos where de = yo.user_id and tipo = 'desafio'
+                                 and texto = 'diario' and creado >= public.inicio_hoy()),
+    'desafios', (select json_agg(json_build_object(
+        'clave', d.clave, 'meta', d.meta, 'premio', d.premio,
+        'progreso', (select count(*) from public.eventos e where e.de = yo.user_id and e.tipo = any (d.tipos)
+                       and e.creado >= public.inicio_hoy()),
+        'cobrado', exists (select 1 from public.eventos e where e.de = yo.user_id and e.tipo = 'desafio'
+                             and e.texto = d.clave and e.creado >= public.inicio_hoy())))
+      from public.desafios_hoy(yo.lugar) d));
+end $$;
+
+create or replace function public.reclamar_desafio(clave_desafio text) returns json
+language plpgsql security definer set search_path = public as $$
+declare yo public.miembros; d record; premio int; hecho int;
+begin
+  select * into yo from public.miembros where user_id = auth.uid();
+  if not found then raise exception 'No estás en una pareja'; end if;
+  if exists (select 1 from public.eventos where de = yo.user_id and tipo = 'desafio'
+               and texto = clave_desafio and creado >= public.inicio_hoy()) then
+    raise exception 'Ya lo cobraste hoy';
+  end if;
+  if clave_desafio = 'diario' then
+    premio := 10;
+  else
+    select * into d from public.desafios_hoy(yo.lugar) x where x.clave = clave_desafio;
+    if not found then raise exception 'Ese desafío no es de hoy'; end if;
+    select count(*) into hecho from public.eventos e where e.de = yo.user_id and e.tipo = any (d.tipos)
+       and e.creado >= public.inicio_hoy();
+    if hecho < d.meta then raise exception 'Todavía no está cumplido'; end if;
+    premio := d.premio;
+  end if;
+  update public.mascotas set monedas = monedas + premio, actualizada = now() where pareja_id = yo.pareja_id;
+  insert into public.eventos (pareja_id, de, tipo, texto) values (yo.pareja_id, yo.user_id, 'desafio', clave_desafio);
+  return json_build_object('premio', premio,
+    'mascota', (select row_to_json(x) from public.mascotas x where pareja_id = yo.pareja_id));
+end $$;
+
+-- ---------------------------------------------------------------------
+--  FOTOS (comprimidas en el celular antes de mandarlas)
+-- ---------------------------------------------------------------------
+create or replace function public.enviar_foto(datos text, texto text default null) returns json
+language plpgsql security definer set search_path = public as $$
+declare p uuid := public.mi_pareja(); id_foto bigint; r json;
+begin
+  if p is null then raise exception 'No estás en una pareja'; end if;
+  if datos !~ '^data:image/(jpeg|png|webp);base64,' then raise exception 'Eso no es una foto'; end if;
+  if char_length(datos) > 450000 then raise exception 'La foto es muy pesada'; end if;
+  if (select count(*) from public.fotos where de = auth.uid() and creado >= public.inicio_hoy()) >= 10 then
+    raise exception 'Ya mandaste 10 fotos hoy 📸 Mañana más';
+  end if;
+  insert into public.fotos (pareja_id, de, datos) values (p, auth.uid(), datos) returning id into id_foto;
+  perform set_config('panda.ref', id_foto::text, true);
+  r := public.registrar_accion('foto', coalesce(nullif(trim(texto), ''), '📸'));
+  perform set_config('panda.ref', '', true);
+  return r;
+end $$;
+
+-- ---------------------------------------------------------------------
+--  ABANDONO: si nadie lo cuida, avisa (3 y 5 días) y a los 7 días se va
+-- ---------------------------------------------------------------------
+create or replace function public.revisar_abandono(p uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare m public.mascotas; dias numeric; nadie constant uuid := '00000000-0000-0000-0000-000000000000';
+begin
+  select * into m from public.mascotas where pareja_id = p for update;
+  if not found or m.se_fue is not null then return; end if;
+  dias := extract(epoch from now() - m.ultimo_cuidado) / 86400;
+  if dias >= 7 then
+    update public.mascotas set se_fue = now(), durmiendo = false, actualizada = now() where pareja_id = p;
+    insert into public.eventos (pareja_id, de, tipo, texto) values (p, nadie, 'sistema',
+      'se_fue|' || m.nombre || '|' || m.amor || '|' || greatest(1, ceil(extract(epoch from now() - m.nacio) / 86400))::int);
+  elsif dias >= 5 and m.aviso_abandono < 2 then
+    update public.mascotas set aviso_abandono = 2, actualizada = now() where pareja_id = p;
+    insert into public.eventos (pareja_id, de, tipo, texto) values (p, nadie, 'sistema', 'aviso_abandono|2');
+  elsif dias >= 3 and m.aviso_abandono < 1 then
+    update public.mascotas set aviso_abandono = 1, actualizada = now() where pareja_id = p;
+    insert into public.eventos (pareja_id, de, tipo, texto) values (p, nadie, 'sistema', 'aviso_abandono|1');
+  end if;
+end $$;
+
+-- La app lo llama al abrir: revisa el abandono y devuelve el estado
+create or replace function public.revisar_panda() returns json
+language plpgsql security definer set search_path = public as $$
+declare p uuid := public.mi_pareja();
+begin
+  if p is not null then perform public.revisar_abandono(p); end if;
+  return public.mi_estado();
+end $$;
+
+-- Después de que se fue: adoptar un panda nuevo (empieza de cero; los mensajes quedan)
+create or replace function public.adoptar_panda(nombre_panda text default 'Pandi') returns json
+language plpgsql security definer set search_path = public as $$
+declare p uuid := public.mi_pareja();
+begin
+  if p is null then raise exception 'No estás en una pareja'; end if;
+  if (select se_fue from public.mascotas where pareja_id = p) is null then raise exception 'Su panda sigue con ustedes 🐼'; end if;
+  update public.mascotas set
+    nombre = coalesce(nullif(trim(nombre_panda), ''), 'Pandi'), amor = 0, racha = 0, mejor_racha = 0, racha_dia = null,
+    ultima_comida = now() - interval '6 hours', ultima_caricia = now(), comidas_total = 0, caricias_total = 0,
+    frases_total = 0, animo = 'feliz', animo_nota = null, mensajes_sin_analizar = 0, frase_dia = null, frase_fecha = null,
+    nacio = now(), actualizada = now(), monedas = 50, ultimo_banio = now(), durmiendo = false, energia_base = 100,
+    energia_desde = now(), inventario = '{"manzana": 2}'::jsonb, accesorios = '[]'::jsonb, puestos = '[]'::jsonb,
+    ultimo_cuidado = now(), aviso_abandono = 0, se_fue = null, generacion = generacion + 1, banios_total = 0, juegos_total = 0
+  where pareja_id = p;
+  insert into public.eventos (pareja_id, de, tipo, texto) values (p, auth.uid(), 'sistema', 'nacio');
+  return public.mi_estado();
+end $$;
+
+-- ---------------------------------------------------------------------
 --  MANTENIMIENTO: limpieza para que la base gratis (500 MB) dure años
 -- ---------------------------------------------------------------------
 --  · Borra eventos de más de 180 días (salvo favoritos y frases)
 --  · Borra frases de más de 2 años (salvo favoritas)
 --  · Borra el contador de Gemini de más de 30 días
---  · Si la base pasa los 400 MB, borra los eventos más viejos (no favoritos)
+--  · Borra fotos de más de 120 días (salvo las guardadas con 💖)
+--  · Revisa si algún panda está abandonado (avisa o se va)
+--  · Si la base pasa los 400 MB, borra los eventos y fotos más viejos (no favoritos)
 create or replace function public.mantenimiento() returns json
 language plpgsql security definer set search_path = public as $$
 declare borrados int := 0; n int; tam bigint;
@@ -396,6 +749,10 @@ begin
   delete from public.uso_gemini where dia < public.hoy() - 30;
   delete from public.parejas p where not exists (select 1 from public.miembros m where m.pareja_id = p.id)
      and p.creada < now() - interval '1 day';
+  delete from public.fotos f where f.creado < now() - interval '120 days'
+     and not exists (select 1 from public.eventos e where e.ref = f.id and e.favorito);
+  get diagnostics n = row_count; borrados := borrados + n;
+  perform public.revisar_abandono(pareja_id) from public.mascotas where se_fue is null;
 
   tam := pg_database_size(current_database());
   if tam > 400 * 1024 * 1024 then
@@ -403,9 +760,13 @@ begin
       select id from public.eventos where favorito = false
        order by creado asc limit greatest(1000, (select count(*) / 5 from public.eventos)));
     get diagnostics n = row_count; borrados := borrados + n;
+    delete from public.fotos where id in (
+      select f.id from public.fotos f where not exists (select 1 from public.eventos e where e.ref = f.id and e.favorito)
+       order by f.creado asc limit greatest(50, (select count(*) / 4 from public.fotos)));
+    get diagnostics n = row_count; borrados := borrados + n;
   end if;
   return json_build_object('borrados', borrados, 'tam_mb', round(tam / 1048576.0, 1),
-                           'eventos', (select count(*) from public.eventos));
+                           'eventos', (select count(*) from public.eventos), 'fotos', (select count(*) from public.fotos));
 end $$;
 
 create or replace function public.ping() returns timestamptz
@@ -420,6 +781,7 @@ alter table public.mascotas    enable row level security;
 alter table public.eventos     enable row level security;
 alter table public.ubicaciones enable row level security;
 alter table public.uso_gemini  enable row level security;
+alter table public.fotos       enable row level security;
 
 drop policy if exists "ver mi pareja"       on public.parejas;
 drop policy if exists "ver miembros"        on public.miembros;
@@ -427,6 +789,7 @@ drop policy if exists "ver mi panda"        on public.mascotas;
 drop policy if exists "ver eventos"         on public.eventos;
 drop policy if exists "ver ubicaciones"     on public.ubicaciones;
 drop policy if exists "ver mi uso"          on public.uso_gemini;
+drop policy if exists "ver fotos"           on public.fotos;
 
 create policy "ver mi pareja"   on public.parejas     for select to authenticated using (id = public.mi_pareja());
 create policy "ver miembros"    on public.miembros    for select to authenticated using (pareja_id = public.mi_pareja());
@@ -434,6 +797,7 @@ create policy "ver mi panda"    on public.mascotas    for select to authenticate
 create policy "ver eventos"     on public.eventos     for select to authenticated using (pareja_id = public.mi_pareja());
 create policy "ver ubicaciones" on public.ubicaciones for select to authenticated using (pareja_id = public.mi_pareja());
 create policy "ver mi uso"      on public.uso_gemini  for select to authenticated using (user_id = auth.uid());
+create policy "ver fotos"       on public.fotos       for select to authenticated using (pareja_id = public.mi_pareja());
 -- No hay políticas de insert/update/delete: todo se modifica con las funciones de arriba.
 
 -- La clave de recuperación no se expone: solo se pueden leer estas columnas
@@ -459,6 +823,18 @@ grant execute on function public.usar_gemini(int)                         to aut
 grant execute on function public.mi_uso_gemini()                          to authenticated;
 grant execute on function public.guardar_animo(text, text)                to authenticated;
 grant execute on function public.guardar_frase_dia(text)                  to authenticated;
+grant execute on function public.item_info(text)                          to authenticated;
+grant execute on function public.energia_actual(int, timestamptz, boolean) to authenticated;
+grant execute on function public.inicio_hoy()                             to authenticated;
+grant execute on function public.comprar(text)                            to authenticated;
+grant execute on function public.poner_accesorio(text, boolean)           to authenticated;
+grant execute on function public.desafios_hoy(int)                        to authenticated;
+grant execute on function public.mis_desafios()                           to authenticated;
+grant execute on function public.reclamar_desafio(text)                   to authenticated;
+grant execute on function public.enviar_foto(text, text)                   to authenticated;
+grant execute on function public.revisar_panda()                          to authenticated;
+grant execute on function public.adoptar_panda(text)                      to authenticated;
+-- revisar_abandono(uuid) NO se da a nadie: la usan revisar_panda y mantenimiento por dentro
 
 -- ---------------------------------------------------------------------
 --  TIEMPO REAL: avisos instantáneos entre los dos celulares

@@ -3,16 +3,24 @@ package com.panda.amor
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.ContentValues
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import android.provider.Settings
+import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import org.json.JSONObject
 
@@ -25,12 +33,16 @@ class MainActivity : Activity() {
     }
 
     private lateinit var web: WebView
+    private var elegirArchivo: ValueCallback<Array<Uri>>? = null
+    private var fotoCamara: Uri? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Avisos.crearCanales(this)
-        window.statusBarColor = Color.parseColor("#fff4f6")
+        val rosa = Color.parseColor("#fff4f6")
+        window.statusBarColor = rosa
+        window.navigationBarColor = rosa
 
         web = WebView(this).apply {
             setBackgroundColor(Color.parseColor("#fff4f6"))
@@ -38,7 +50,15 @@ class MainActivity : Activity() {
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
             settings.userAgentString = settings.userAgentString + " PandaAmorApp"
-            webChromeClient = WebChromeClient()
+            webChromeClient = object : WebChromeClient() {
+                // <input type="file">: elegir una foto de la galería o sacarla con la cámara
+                override fun onShowFileChooser(v: WebView, cb: ValueCallback<Array<Uri>>, p: FileChooserParams): Boolean {
+                    elegirArchivo?.onReceiveValue(null)
+                    elegirArchivo = cb
+                    abrirSelectorFoto()
+                    return true
+                }
+            }
             webViewClient = object : WebViewClient() {
                 // los links externos (Google Maps, etc.) se abren afuera
                 override fun shouldOverrideUrlLoading(v: WebView, r: WebResourceRequest): Boolean {
@@ -51,7 +71,9 @@ class MainActivity : Activity() {
             }
         }
         web.addJavascriptInterface(Puente(this, web, actividad = this), "AndroidPanda")
-        setContentView(web)
+        val raiz = FrameLayout(this).apply { setBackgroundColor(rosa); addView(web) }
+        setContentView(raiz)
+        ajustarBordes(raiz)
 
         val error = Fallos.tomar(this)
         if (error != null) {
@@ -62,6 +84,61 @@ class MainActivity : Activity() {
         }
         if (Config.urlConfigurada(this)) cargar(intent) else pedirUrl()
         Actualizador.revisar(this)
+    }
+
+    /**
+     * Android 15 dibuja la app debajo de la barra de estado y de los botones/gesto de abajo.
+     * Acá se deja un margen del tamaño de esas barras (y del teclado) para que no tapen nada.
+     */
+    private fun ajustarBordes(raiz: FrameLayout) {
+        if (Build.VERSION.SDK_INT >= 30) {
+            window.setDecorFitsSystemWindows(false)
+            window.insetsController?.setSystemBarsAppearance(
+                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
+                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
+            )
+            raiz.setOnApplyWindowInsetsListener { v, ins ->
+                val barras = ins.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+                val teclado = ins.getInsets(WindowInsets.Type.ime())
+                v.setPadding(barras.left, barras.top, barras.right, maxOf(barras.bottom, teclado.bottom))
+                WindowInsets.CONSUMED
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        }
+    }
+
+    /** Elegir foto: galería, o la cámara (la foto queda también en Imágenes/NuestroPanda). */
+    private fun abrirSelectorFoto() {
+        val galeria = Intent(Intent.ACTION_GET_CONTENT).setType("image/*").addCategory(Intent.CATEGORY_OPENABLE)
+        val extras = mutableListOf<Intent>()
+        fotoCamara = null
+        if (Build.VERSION.SDK_INT >= 29) {
+            try {
+                val datos = ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME, "panda_${System.currentTimeMillis()}.jpg")
+                    put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                    put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/NuestroPanda")
+                }
+                fotoCamara = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, datos)
+                fotoCamara?.let { extras.add(Intent(MediaStore.ACTION_IMAGE_CAPTURE).putExtra(MediaStore.EXTRA_OUTPUT, it)) }
+            } catch (_: Exception) { fotoCamara = null }
+        }
+        val selector = Intent.createChooser(galeria, "Elegí una foto").putExtra(Intent.EXTRA_INITIAL_INTENTS, extras.toTypedArray())
+        try { startActivityForResult(selector, 21) } catch (_: Exception) { elegirArchivo?.onReceiveValue(null); elegirArchivo = null }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != 21) return
+        var elegida: Uri? = null
+        if (resultCode == RESULT_OK) elegida = data?.data ?: fotoCamara
+        // si no usó la cámara, se borra el lugar vacío que se había reservado
+        if (fotoCamara != null && elegida != fotoCamara) try { contentResolver.delete(fotoCamara!!, null, null) } catch (_: Exception) {}
+        elegirArchivo?.onReceiveValue(elegida?.let { arrayOf(it) })
+        elegirArchivo = null
     }
 
     private fun mostrarError(texto: String) {
@@ -130,8 +207,12 @@ class MainActivity : Activity() {
         web.evaluateJavascript("window.dispatchEvent(new Event('android-volvio'))", null)
     }
 
+    /** Atrás (gesto o flechita): primero cierra lo que esté abierto en la app (ventanas, juego, baño…). */
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        if (web.canGoBack()) web.goBack() else moveTaskToBack(true)
+        web.evaluateJavascript("(window.__atras && window.__atras()) ? 'si' : 'no'") { r ->
+            if (r?.contains("si") == true) return@evaluateJavascript
+            if (web.canGoBack()) web.goBack() else moveTaskToBack(true)
+        }
     }
 }
