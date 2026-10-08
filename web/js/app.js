@@ -372,7 +372,8 @@
     if (r.nota === "lleno") dicho = F.frase("lleno", n);
     else if (r.nota === "limpio") dicho = F.frase("limpio", n);
     else if (tipo === "banio") { dicho = F.frase("banio_listo", n); panda.reaccion("amor"); }
-    else if (tipo === "dormir") dicho = F.frase(r.nota === "sin_sueno" ? "sin_sueno" : "a_dormir", n);
+    // de noche siempre tiene sueño (aunque la barra de energía esté alta): no decir "no tengo sueño"
+    else if (tipo === "dormir") dicho = F.frase(r.nota === "sin_sueno" && !R.esDeNoche() ? "sin_sueno" : "a_dormir", n);
     else if (tipo === "despertar") { dicho = F.frase(r.nota === "sueno" ? "sueno_despertar" : "despertar", n); panda.reaccion(r.nota === "sueno" ? "bostezo" : "saludo"); }
     else if (tipo === "comer") dicho = F.frase("comer_item", n);
     else if (tipo === "sentir") dicho = F.frase("sentir_enviado", n);
