@@ -53,12 +53,6 @@
                 android:value="Mascota virtual que camina sobre la pantalla y avisa a la pareja" />
         </service>
 
-        <!-- La voz de Daniela en un proceso aparte: si el motor falla, no se cierra la app -->
-        <service
-            android:name=".VozService"
-            android:exported="false"
-            android:process=":voz" />
-
         <receiver
             android:name=".ResultadoInstalacion"
             android:exported="false" />

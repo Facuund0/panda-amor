@@ -32,6 +32,8 @@
 
   const Puente = {
     esAndroid: () => !!A(),
+    // ¿La app principal está abierta? En el navegador siempre false.
+    appAbierta() { try { return !!A()?.appAbierta?.(); } catch { return false; } },
     // Versión del APK instalado (0 si es una versión vieja o el navegador)
     versionApp() { try { return A()?.version ? A().version() : 0; } catch { return 0; } },
     // En el navegador no hace falta: la web siempre está al día

@@ -181,6 +181,7 @@
               <button class="accion" data-accion="hablar"><i>💬</i>Hablar<small>con IA</small></button>
             </div>
           </div>
+          <div class="tarjeta tarjeta-ubic" id="tarjeta-ubic" hidden></div>
           <div class="tarjeta pregunta-dia" id="pregunta-dia"></div>
         </section>
         <section class="vista" data-vista="mensajes" hidden>
@@ -215,6 +216,7 @@
     try { eventos = await D.eventos({ limite: 80 }); } catch {}
     try { usoGemini = await D.usoGemini(); } catch {}
     pintarPregunta();
+    pintarTarjetaUbicacion();
     revisarDesafiosPendientes();
 
     // saludo (una vez por apertura)
@@ -229,7 +231,7 @@
     procesarParametros();
     setInterval(() => actualizarTodo(false), 60000); // hambre y ánimo cambian con el tiempo
     if (D.modo === "supabase") document.addEventListener("visibilitychange", async () => {
-      if (document.visibilityState === "visible") { E = await D.revisar(); actualizarTodo(false); eventos = await D.eventos({ limite: 80 }); if (vista === "mensajes") pintarChat(); pintarPregunta(); }
+      if (document.visibilityState === "visible") { E = await D.revisar(); actualizarTodo(false); eventos = await D.eventos({ limite: 80 }); if (vista === "mensajes") pintarChat(); pintarPregunta(); pintarTarjetaUbicacion(); }
     });
   }
 
@@ -416,17 +418,48 @@
   // ---------------------------------------------------------------
   async function menuUbicacion() {
     if (!E.otro) return aviso("Primero tu pareja se tiene que unir con el código");
-    let u = null;
+    let u = null, mia = null;
     try { u = await D.ubicacionDe(E.otro.id); } catch {}
+    try { mia = await D.ubicacionDe(E.yo.id); } catch {}
     abrirHoja(`<h2>📍 ¿Dónde está ${esc(nombres().otro)}?</h2>
-      ${u ? `<p class="nota" style="margin-bottom:10px">Última ubicación que compartió: ${R.haceCuanto(u.actualizada)}</p>${mapa(u)}` : `<p class="nota" style="margin-bottom:12px">Todavía no compartió su ubicación.</p>`}
+      ${u ? `<p class="nota" style="margin-bottom:10px">Compartió su ubicación <b>${R.haceCuanto(u.actualizada)}</b>${u.precision_m ? ` · precisión ${Math.round(u.precision_m)} m` : ""}</p>${mapa(u)}`
+          : `<p class="nota" style="margin-bottom:12px">Todavía no compartió su ubicación. Tocá "Preguntarle dónde está" y cuando acepte la vas a ver acá en el mapa.</p>`}
       <div style="display:grid;gap:10px;margin-top:14px">
-        <button class="btn btn-ancho" id="u-pedir">Preguntarle dónde está</button>
+        <button class="btn btn-ancho" id="u-pedir">${u ? "Pedirle una más nueva" : "Preguntarle dónde está"}</button>
         <button class="btn btn-sec btn-ancho" id="u-mia">Compartir la mía</button>
       </div>
+      ${mia ? `<p class="nota" style="margin-top:12px">Tu última ubicación compartida: ${R.haceCuanto(mia.actualizada)}. <button class="btn btn-chico" id="u-ver-mia">Ver</button></p>` : ""}
       <p class="nota" style="margin-top:12px">${esc(nombres().otro)} decide si la comparte. Solo se guarda la última ubicación, no un historial.</p>`);
     $("#u-pedir").addEventListener("click", () => { cerrarHoja(); hacer("pedir_ubicacion"); });
     $("#u-mia").addEventListener("click", () => { cerrarHoja(); compartirMiUbicacion(); });
+    $("#u-ver-mia")?.addEventListener("click", () => verUbicacion(mia, "Tu ubicación compartida"));
+  }
+
+  // Muestra un mapa en una ventana (al recibir la ubicación, o desde Mensajes)
+  function verUbicacion(u, titulo) {
+    if (!u) return menuUbicacion();
+    abrirHoja(`<h2>📍 ${esc(titulo)}</h2>
+      <p class="nota" style="margin-bottom:10px">Compartida ${R.haceCuanto(u.actualizada)}${u.precision_m ? ` · precisión ${Math.round(u.precision_m)} m` : ""}</p>
+      ${mapa(u)}`);
+  }
+  async function verUbicacionDelOtro() {
+    let u = null;
+    try { u = await D.ubicacionDe(E.otro?.id); } catch {}
+    if (!u) return menuUbicacion();
+    verUbicacion(u, `Acá está ${nombres().otro}`);
+  }
+
+  // Tarjeta en la pantalla del panda con la última ubicación de la pareja
+  async function pintarTarjetaUbicacion() {
+    const t = $("#tarjeta-ubic");
+    if (!t || !E.otro) return;
+    let u = null;
+    try { u = await D.ubicacionDe(E.otro.id); } catch {}
+    if (!u) { t.hidden = true; return; }
+    t.hidden = false;
+    t.innerHTML = `<div class="fila" style="margin:0"><div>📍 <b>${esc(nombres().otro)}</b> compartió dónde está<div class="desc">${R.haceCuanto(u.actualizada)}</div></div>
+      <button class="btn btn-chico" id="t-ver-ubic">Ver mapa</button></div>`;
+    $("#t-ver-ubic").addEventListener("click", () => verUbicacion(u, `Acá está ${nombres().otro}`));
   }
 
   function mapa(u) {
@@ -502,7 +535,10 @@
     if (ev.tipo === "pedir_ubicacion") {
       if (E.yo.compartir_auto) compartirMiUbicacion(); else preguntaUbicacion();
     }
-    if (ev.tipo === "ubicacion") aviso(`📍 ${n.otro} compartió dónde está · tocá "¿Dónde estás?"`);
+    if (ev.tipo === "ubicacion") {
+      pintarTarjetaUbicacion();
+      if ($("#hoja").hidden) verUbicacionDelOtro(); else aviso(`📍 ${n.otro} compartió dónde está · mirala en el mapa de "¿Dónde estás?"`);
+    }
     if (texto && !["necesito_amor", "pedir_ubicacion"].includes(ev.tipo)) decir(texto);
     else if (texto) decir(texto, { mostrar: false });
   }
@@ -543,6 +579,9 @@
         if (clave === "se_fue") filas.push(`<div class="sistema">🎒 ${esc(nom)} se fue después de ${diasVivo} días · ${R.fechaCorta(e.creado)}</div>`);
         else if (clave === "aviso_abandono") filas.push(`<div class="sistema">🥺 ${esc(E.mascota.nombre)} se siente solo · ${R.fechaCorta(e.creado)}</div>`);
         else filas.push(`<div class="sistema">🐣 Nació ${esc(E.mascota.nombre)} · ${R.fechaCorta(e.creado)}</div>`);
+      } else if (e.tipo === "ubicacion") {
+        const quien = esc(nombreDe(e.de));
+        filas.push(`<button class="sistema sistema-ubic" data-ver-ubic="${e.de}">📍 ${quien} compartió su ubicación · ${R.fechaCorta(e.creado)} · <u>ver mapa</u></button>`);
       } else if (sistema[e.tipo]) {
         const extraTxt = e.tipo === "comer" ? ` ${R.TIENDA[e.texto]?.emoji || ""}` : e.tipo === "juego" ? ` (${esc(e.texto)} pts)` : "";
         const txt = `${esc(nombreDe(e.de))} ${sistema[e.tipo]}${extraTxt}`;
@@ -555,6 +594,12 @@
     $("#chat").innerHTML = filas.join("") || `<div class="sistema">Todavía no hay mensajes. ¡Escribí el primero!</div>`;
     cargarFotos($("#chat"));
     $$("[data-ver-foto]").forEach((b) => b.addEventListener("click", () => verFoto(b.dataset.verFoto)));
+    $$("[data-ver-ubic]").forEach((b) => b.addEventListener("click", async () => {
+      const id = b.dataset.verUbic, esMia = id === E.yo.id;
+      let u = null; try { u = await D.ubicacionDe(id); } catch {}
+      if (!u) return aviso("Ya no está guardada");
+      verUbicacion(u, esMia ? "Tu ubicación compartida" : `Acá está ${nombres().otro}`);
+    }));
     $$("[data-fav]").forEach((b) => b.addEventListener("click", async () => {
       const id = +b.dataset.fav, e = eventos.find((x) => x.id === id);
       e.favorito = !e.favorito; b.textContent = e.favorito ? "💖" : "🤍";
@@ -630,7 +675,6 @@
   async function pintarAjustes() {
     try { usoGemini = await D.usoGemini(); } catch {}
     const lim = D.limiteGemini || 60;
-    const motor = Voz.motor;
     const clave = leer("panda-clave", "");
     const android = P.esAndroid();
     const perm = android ? P.permisos() : {};
@@ -650,14 +694,8 @@
         </div>` : ""}
 
       <div class="tarjeta"><h3>🔊 Voz de ${esc(nombres().panda)}</h3>
-        <div class="segmentos" id="a-motor">
-          ${android ? `<button data-motor="piper" class="${motor === "piper" ? "activo" : ""}">Daniela</button>
-          <button data-motor="celular" class="${motor === "celular" ? "activo" : ""}">Voz del celu</button>` : ""}
-          <button data-motor="mascota" class="${motor === "mascota" ? "activo" : ""}">Idioma panda</button>
-          ${android ? "" : `<button data-motor="navegador" class="${motor === "navegador" ? "activo" : ""}">Navegador</button>`}
-        </div>
-        ${android ? `<p class="nota" id="a-piper" style="margin-top:8px"></p>
-          <p class="nota">Si Daniela no está o falla, habla con la voz del celu. <button class="btn btn-chico" id="a-tts">Cambiar voz del celu</button></p>` : `<p class="nota" style="margin-top:8px">La voz real (Daniela, sin internet) funciona en la app Android.</p>`}
+        <p class="nota" style="margin-bottom:6px">${android ? "Usa la voz del celular con tono de nene." : "Usa la voz del navegador con tono de nene."}${Voz.disponible() ? "" : " ⚠️ Este dispositivo no tiene voz en castellano: el panda va a hablar solo con globitos."}</p>
+        ${android ? `<button class="btn btn-sec btn-chico" id="a-tts" style="margin-bottom:6px">Elegir otra voz del celu</button>` : ""}
         <div class="fila"><div style="flex:1">Tono de nene<div class="desc">Más a la derecha = más agudo y tierno</div>
           <input type="range" id="a-tono" min="1" max="1.7" step="0.05" value="${Voz.tono}"></div></div>
         <div class="fila"><div>Voz activada</div><label class="interruptor"><input type="checkbox" id="a-voz" ${Voz.activa ? "checked" : ""}><span></span></label></div>
@@ -709,7 +747,6 @@
       const r = P.activarFlotante(e.target.checked);
       if (r === "permiso") { aviso("Activá \"Mostrar sobre otras apps\" y volvé"); e.target.checked = false; }
     });
-    $$("[data-motor]").forEach((b) => b.addEventListener("click", () => { Voz.motor = b.dataset.motor; pintarAjustes(); }));
     $("#a-tono").addEventListener("change", (e) => { Voz.tono = +e.target.value; decir("¡Hola! ¿Así te gusta mi voz?"); });
     $("#a-voz").addEventListener("change", (e) => { Voz.activa = e.target.checked; });
     $("#a-probar").addEventListener("click", () => decir(`Hola ${nombres().yo}, soy ${nombres().panda}. ¡Te quiero mucho!`));
@@ -726,15 +763,6 @@
       await D.salir(); localStorage.removeItem("panda-clave"); location.reload();
     });
     if (android) {
-      const pintarPiper = () => {
-        const el = $("#a-piper"); if (!el || vista !== "ajustes") return;
-        const s = Voz.estadoPiper();
-        if (s === "lista") el.innerHTML = "✅ Voz de Daniela instalada (funciona sin internet)";
-        else if (s.startsWith("descargando")) { el.textContent = `⬇️ Descargando la voz… ${s.split(":")[1] || 0}%`; setTimeout(pintarPiper, 1000); }
-        else if (s.startsWith("error:")) { el.innerHTML = `⚠️ ${s.slice(6)} <button class="btn btn-chico" id="a-bajar">Volver a probar</button>`; $("#a-bajar").onclick = () => { Voz.descargarPiper(); setTimeout(pintarPiper, 500); }; }
-        else { el.innerHTML = `La voz real pesa unos 115 MB y se descarga una sola vez. <button class="btn btn-chico" id="a-bajar">Descargar</button>`; $("#a-bajar").onclick = () => { Voz.descargarPiper(); setTimeout(pintarPiper, 500); }; }
-      };
-      pintarPiper();
       $("#a-tts")?.addEventListener("click", () => Voz.ajustesCelular());
       $("#a-actualizar")?.addEventListener("click", () => P.buscarActualizacion());
     }
@@ -809,6 +837,7 @@
       else if (a === "mimos") hacer("caricia");
       else if (a === "necesito_amor") alertaNecesitaAmor();
       else if (a === "sentir") irA("mensajes");
+      else if (a === "ver_ubicacion") verUbicacionDelOtro();
     }, 900);
   }
   // La app Android también puede pedirlo sin recargar

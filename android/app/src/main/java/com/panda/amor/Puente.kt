@@ -42,14 +42,10 @@ class Puente(
         ctx.startActivity(i)
     }
 
-    // ---------- voz Piper ----------
-    @JavascriptInterface fun estadoVoz(): String = VozPanda.estado(ctx)
-    @JavascriptInterface fun descargarVoz() = VozPanda.descargar(ctx)
-    @JavascriptInterface fun callar() { VozCliente.callar(); VozCelular.callar() }
-    // Daniela (Piper): corre en otro proceso para que, si falla, no cierre la app
-    @JavascriptInterface fun hablar(texto: String, tono: Double, id: String) {
-        VozCliente.hablar(ctx, texto, tono.toFloat(), id) { tipo -> js("window.__vozEvento && window.__vozEvento(${q(id)}, ${q(tipo)})") }
-    }
+    // ---------- voz (una sola: la del celular, con tono de nene) ----------
+    @JavascriptInterface fun callar() = VozCelular.callar()
+    // ¿La app principal está abierta? (el panda flotante no habla para no pisarse con ella)
+    @JavascriptInterface fun appAbierta(): Boolean = MainActivity.enPrimerPlano
     // Voz del celular (motor de Android) con tono de nene
     @JavascriptInterface fun estadoVozCelular(): String { VozCelular.precargar(ctx); return VozCelular.estado() }
     @JavascriptInterface fun hablarCelular(texto: String, tono: Double, id: String) {

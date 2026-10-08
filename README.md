@@ -6,10 +6,10 @@ Un osito panda virtual para una pareja. Crece con el amor que se dan: hay que da
 - 🎋 **Comer, mimos y frases.** Suman amor 💗 y el panda crece en 6 etapas: Bebé → Cachorrito → Pequeño → Juguetón → Grande → Panda sabio.
 - 🔥 **Racha.** Cada día en que **los dos** lo cuidaron suma un día de racha y amor extra.
 - 📳 **"Necesito amor".** Al otro le vibra el celular y le llega un aviso. En el panda flotante es **mantener apretado** al panda.
-- 📍 **"¿Dónde estás?"** Le pregunta la ubicación a tu pareja, que decide si la comparte o la deja en automático. Solo se guarda la última ubicación.
+- 📍 **"¿Dónde estás?"** Le pregunta la ubicación a tu pareja, que decide si la comparte o la deja en automático. Cuando la comparte se abre un **mapa**; después se ve en la tarjeta "📍 … compartió dónde está" de la pantalla del panda, en Mensajes ("ver mapa") y en "¿Dónde estás?". Solo se guarda la última ubicación.
 - 💌 **Mensajes entre ustedes a través del panda.** Con Gemini, el panda lee el clima de la pareja y cambia su ánimo.
 - 💬 **Charlar con el panda** usando IA (Gemini). Cada persona usa **su propia cuenta** de Gemini.
-- 🔊 **Voz tierna de nene.** Voz "Daniela" (Argentina) con Piper, **dentro del celular**: sin internet y sin límites. También hay un "idioma panda".
+- 🔊 **Voz tierna de nene.** Una sola voz: la del celular (o la del navegador) con el tono subido. No gasta IA. En Ajustes se ajusta el "tono de nene".
 - 🌸 **Recuerdos.** Estadísticas, mensajes guardados y las etapas de crecimiento.
 
 **Estilo Pou (v2):**
@@ -38,7 +38,7 @@ web/          La app (HTML + JS, sin compilar). La usan Vercel y la app Android.
   js/reglas.js  puntos, etapas, hambre y ánimo
 api/          Funciones de Vercel (servidor). Solo acá se usa Gemini.
 supabase/     schema.sql: tablas, seguridad, reglas del juego y limpieza automática
-android/      App Android (Kotlin): panda flotante, voz Piper, notificaciones, ubicación
+android/      App Android (Kotlin): panda flotante, voz del celular, notificaciones, ubicación
 .github/      Compila el APK sola en GitHub
 AGENTS.md     Instrucciones para la IA de VS Code (contexto del proyecto)
 ```
@@ -91,7 +91,7 @@ Cada uno entra a **aistudio.google.com** con **su propia cuenta de Google** y cr
    - **Panda flotante:** activarlo y dar el permiso **"Mostrar sobre otras apps"**.
    - **Notificaciones** y **Ubicación:** permitir.
    - **Batería:** quitar el límite. Si no, Samsung, Xiaomi y otras marcas cierran al panda.
-   - **Voz:** "Voz real" → **Descargar** (unos 115 MB, una sola vez, mejor con Wi-Fi). Con "Tono de nene" la ajustan a gusto.
+   - **Voz:** en Ajustes → Voz probá el "Tono de nene". Con "Elegir otra voz del celu" podés cambiar a la de Google.
 
 **Panda flotante:** un toque le da mimos · doble toque abre la app · mantener apretado manda "Necesito amor" · arrastrar lo mueve.
 

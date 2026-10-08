@@ -1,4 +1,3 @@
-import java.net.URI
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -58,19 +57,3 @@ kotlin {
     compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
 }
 
-// ---- Motor de voz sin internet (sherpa-onnx, para la voz Piper) ----
-// Se descarga solo la primera vez que se compila.
-val sherpaVersion = "1.13.8"
-val sherpaAar = file("libs/sherpa-onnx-$sherpaVersion.aar")
-if (!sherpaAar.exists()) {
-    sherpaAar.parentFile.mkdirs()
-    println("Descargando sherpa-onnx $sherpaVersion (motor de voz)…")
-    URI("https://github.com/k2-fsa/sherpa-onnx/releases/download/v$sherpaVersion/sherpa-onnx-$sherpaVersion.aar")
-        .toURL().openStream().use { entrada -> sherpaAar.outputStream().use { entrada.copyTo(it) } }
-}
-
-dependencies {
-    implementation(files(sherpaAar))
-    // para descomprimir el modelo de voz (.tar.bz2)
-    implementation("org.apache.commons:commons-compress:1.27.1")
-}

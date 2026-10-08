@@ -29,16 +29,4 @@ object Config {
     fun guardarFlotante(ctx: Context, encendido: Boolean) {
         prefs(ctx).edit().putBoolean("flotante", encendido).apply()
     }
-
-    /** Si la voz Piper hizo cerrar la app, queda apagada (se puede volver a probar desde Ajustes). */
-    fun vozDesactivada(ctx: Context): Boolean = prefs(ctx).getBoolean("voz_off", false)
-    fun guardarVozDesactivada(ctx: Context, off: Boolean) { prefs(ctx).edit().putBoolean("voz_off", off).putInt("voz_fallos", 0).commit() }
-
-    /** Cuántas veces seguidas se cayó la voz de Daniela. Con 2 se apaga sola. */
-    fun sumarFalloVoz(ctx: Context) {
-        val n = prefs(ctx).getInt("voz_fallos", 0) + 1
-        prefs(ctx).edit().putInt("voz_fallos", n).apply()
-        if (n >= 2) guardarVozDesactivada(ctx, true)
-    }
-    fun vozAndaBien(ctx: Context) { prefs(ctx).edit().putInt("voz_fallos", 0).apply() }
 }

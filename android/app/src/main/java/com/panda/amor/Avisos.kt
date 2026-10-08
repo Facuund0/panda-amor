@@ -58,6 +58,7 @@ object Avisos {
             "pedir_ubicacion" -> "pregunta_ubicacion"
             "mensaje", "frase", "foto", "pregunta" -> "mensajes"
             "sentir" -> "sentir"
+            "ubicacion" -> "ver_ubicacion"
             else -> ""
         }
         val codigo = tipo.hashCode() and 0xffff

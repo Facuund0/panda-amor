@@ -84,6 +84,17 @@ class MainActivity : Activity() {
         }
         if (Config.urlConfigurada(this)) cargar(intent) else pedirUrl()
         Actualizador.revisar(this)
+        borrarVozVieja()
+    }
+
+    /** La voz de Daniela (Piper) se sacó: si estaba descargada, se borra para liberar ~115 MB. */
+    private fun borrarVozVieja() {
+        Thread {
+            try {
+                java.io.File(filesDir, "vits-piper-es_AR-daniela-high").deleteRecursively()
+                java.io.File(cacheDir, "voz.tar.bz2").delete()
+            } catch (_: Exception) {}
+        }.start()
     }
 
     /**

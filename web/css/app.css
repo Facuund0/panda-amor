@@ -338,3 +338,7 @@ input[type="range"] { width: 100%; accent-color: var(--rosa); }
 .item-tienda .tenes { color: var(--verde); }
 .item-tienda .btn { margin-top: 4px; width: 100%; }
 .item-tienda.puesto { background: var(--rosa-claro); box-shadow: inset 0 0 0 2px var(--rosa-2); }
+
+/* ubicación */
+.tarjeta-ubic .btn { flex: none; }
+button.sistema-ubic { border: 0; font-family: inherit; cursor: pointer; }

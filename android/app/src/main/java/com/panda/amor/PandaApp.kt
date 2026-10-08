@@ -14,7 +14,6 @@ import java.io.StringWriter
 class PandaApp : Application() {
     override fun onCreate() {
         super.onCreate()
-        if (Build.VERSION.SDK_INT >= 28 && Application.getProcessName().endsWith(":voz")) return
         val anterior = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { hilo, e ->
             try { Fallos.guardar(this, hilo.name, e) } catch (_: Throwable) {}

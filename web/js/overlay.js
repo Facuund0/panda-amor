@@ -86,7 +86,8 @@
     clearTimeout(tGlobo);
     const cerrar = () => { g.hidden = true; conGlobo = false; tamano(t.w, t.h); };
     tGlobo = setTimeout(cerrar, (segundos || Math.max(4, texto.length * 0.075)) * 1000);
-    if (hablar) {
+    // Si la app principal está abierta, habla ella: así no se pisan dos voces
+    if (hablar && !P.appAbierta()) {
       panda.hablando(true);
       await Voz.hablar(texto, { alNivel: (n) => (panda.nivelVoz = n) });
       panda.hablando(false);
