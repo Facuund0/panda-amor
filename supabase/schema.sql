@@ -943,6 +943,60 @@ begin
 end $$;
 grant execute on function public.probar_push() to authenticated;
 
+-- ---------------------------------------------------------------------
+--  EL PANDA AVISA CUANDO NECESITA ALGO (push a los dos, cada hora)
+--  Hambre, sueño/energía, mimos, baño. Cada necesidad se avisa como mucho
+--  cada 8 horas y nunca de noche (23 a 9 h, hora de Argentina).
+--  También revisa el abandono de todos los pandas (avisos de "se siente solo"
+--  y "se va"), así llegan aunque nadie abra la app.
+-- ---------------------------------------------------------------------
+alter table public.mascotas add column if not exists avisos_push jsonb not null default '{}';
+
+create or replace function public.avisos_necesidades() returns int
+language plpgsql security definer set search_path = public as $$
+declare
+  m record; tokens jsonb; necesidad text; titulo text; cuerpo text; ult timestamptz; cuenta int := 0;
+  hora int := extract(hour from now() at time zone 'America/Argentina/Buenos_Aires');
+begin
+  for m in select pareja_id from public.mascotas where se_fue is null loop
+    begin perform public.revisar_abandono(m.pareja_id); exception when others then null; end;
+  end loop;
+  if hora >= 23 or hora < 9 then return 0; end if;
+
+  for m in select * from public.mascotas where se_fue is null loop
+    necesidad := null;
+    if now() - m.ultima_comida > interval '15 hours' then
+      necesidad := 'hambre'; titulo := '🎋 ' || m.nombre || ' tiene hambre'; cuerpo := '¿Alguno me da bambú? Tengo la panza vacía 🥺';
+    elsif not m.durmiendo and public.energia_actual(m.energia_base, m.energia_desde, false) < 20 then
+      necesidad := 'energia'; titulo := '😴 ' || m.nombre || ' está muy cansado'; cuerpo := 'Me quedé sin energía… ¿me acuestan a dormir un ratito?';
+    elsif now() - m.ultima_caricia > interval '24 hours' then
+      necesidad := 'carino'; titulo := '💗 ' || m.nombre || ' extraña sus mimos'; cuerpo := 'Hace un día que nadie me hace mimitos 🥹';
+    elsif now() - m.ultimo_banio > interval '36 hours' then
+      necesidad := 'limpieza'; titulo := '🛁 ' || m.nombre || ' está sucio'; cuerpo := '¡Necesito un baño con mucha espuma!';
+    end if;
+    if necesidad is null then continue; end if;
+    ult := (m.avisos_push ->> necesidad)::timestamptz;
+    if ult is not null and now() - ult < interval '8 hours' then continue; end if;
+
+    select jsonb_agg(t.token) into tokens
+      from public.push_tokens t join public.miembros mi on mi.user_id = t.user_id
+     where mi.pareja_id = m.pareja_id;
+    if tokens is null then continue; end if;
+
+    update public.mascotas set avisos_push = avisos_push || jsonb_build_object(necesidad, now()) where pareja_id = m.pareja_id;
+    begin
+      perform net.http_post(url := public.url_push(),
+        body := jsonb_build_object('tokens', tokens, 'titulo', titulo, 'texto', cuerpo, 'tipo', 'necesidad'),
+        headers := '{"Content-Type": "application/json"}'::jsonb, timeout_milliseconds := 8000);
+      cuenta := cuenta + 1;
+    exception when others then null;
+    end;
+  end loop;
+  return cuenta;
+end $$;
+-- solo la corre el reloj de la base (pg_cron), no la app
+revoke execute on function public.avisos_necesidades() from public, anon, authenticated;
+
 drop trigger if exists eventos_push on public.eventos;
 create trigger eventos_push after insert on public.eventos
   for each row execute function public.avisar_push();
@@ -956,6 +1010,9 @@ begin
   create extension if not exists pg_cron;
   perform cron.unschedule('panda-limpieza') where exists (select 1 from cron.job where jobname = 'panda-limpieza');
   perform cron.schedule('panda-limpieza', '0 7 * * *', 'select public.mantenimiento()');
+  -- cada hora (minuto 17): el panda avisa si necesita algo
+  perform cron.unschedule('panda-avisos') where exists (select 1 from cron.job where jobname = 'panda-avisos');
+  perform cron.schedule('panda-avisos', '17 * * * *', 'select public.avisos_necesidades()');
 exception when others then
   raise notice 'pg_cron no disponible: la limpieza la hace Vercel (api/mantenimiento).';
 end $$;
