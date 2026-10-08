@@ -70,25 +70,25 @@
 
   const horasDesde = (fecha) => (Date.now() - new Date(fecha).getTime()) / 3600000;
 
-  // 0 = lleno · 1 = muerto de hambre
+  // 0 = lleno · 1 = muerto de hambre (lleno 1 h después de comer, vacío a las 12 h)
   function hambre(m) {
     const h = horasDesde(m.ultima_comida);
-    return Math.max(0, Math.min(1, (h - 2) / 22));
+    return Math.max(0, Math.min(1, (h - 1) / 11));
   }
 
-  // 0..100: durmiendo sube 25 por hora, despierto baja 6 por hora (igual que energia_actual en schema.sql)
+  // 0..100: durmiendo sube 25 por hora, despierto baja 8 por hora (igual que energia_actual en schema.sql)
   function energia(m) {
     if (m.energia_base == null) return 100; // base de datos vieja
     const h = Math.max(0, horasDesde(m.energia_desde));
-    return m.durmiendo ? Math.min(100, m.energia_base + Math.floor(h * 25)) : Math.max(0, m.energia_base - Math.floor(h * 6));
+    return m.durmiendo ? Math.min(100, m.energia_base + Math.floor(h * 25)) : Math.max(0, m.energia_base - Math.floor(h * 8));
   }
-  // 1 = limpito · 0 = muy sucio (aguanta 6 h limpio y a las 48 h está sucísimo)
+  // 1 = limpito · 0 = muy sucio (aguanta 3 h limpio y a las 24 h está sucísimo)
   function limpieza(m) {
     if (!m.ultimo_banio) return 1;
-    return Math.max(0, Math.min(1, 1 - (horasDesde(m.ultimo_banio) - 6) / 42));
+    return Math.max(0, Math.min(1, 1 - (horasDesde(m.ultimo_banio) - 3) / 21));
   }
-  // 1 = recién mimado · 0 = hace 30 h que nadie lo mima (ahí se pone triste)
-  function carino(m) { return Math.max(0, Math.min(1, 1 - (horasDesde(m.ultima_caricia) - 1) / 29)); }
+  // 1 = recién mimado · 0 = hace 16 h que nadie lo mima (ahí se pone triste)
+  function carino(m) { return Math.max(0, Math.min(1, 1 - (horasDesde(m.ultima_caricia) - 1) / 15)); }
   const diasSinCuidado = (m) => (m.ultimo_cuidado ? horasDesde(m.ultimo_cuidado) / 24 : 0);
   const diasParaIrse = (m) => Math.max(0, Math.ceil(ABANDONO.seVa - diasSinCuidado(m)));
   const esDeNoche = (ahora = new Date()) => ahora.getHours() >= 23 || ahora.getHours() < 7;
@@ -101,7 +101,7 @@
     if (m.durmiendo) return { clave: "dormido", texto: "Durmiendo", emoji: "😴" };
     if (ham > 0.75) return { clave: "hambriento", texto: "¡Tiene mucha hambre!", emoji: "🥺" };
     if (energia(m) < 15) return { clave: "cansado", texto: "Está agotado, acostalo", emoji: "🥱" };
-    if (sinMimos > 30) return { clave: "triste", texto: "Extraña sus mimos", emoji: "😢" };
+    if (sinMimos > 16) return { clave: "triste", texto: "Extraña sus mimos", emoji: "😢" };
     if (limpieza(m) < 0.25) return { clave: "sucio", texto: "Está sucio, ¡bañalo!", emoji: "🫧" };
     if (esDeNoche(ahora)) return { clave: "sueno", texto: "Tiene sueño, apagale la luz", emoji: "🥱" };
     if (ham > 0.4) return { clave: "hambriento", texto: "Tiene hambre", emoji: "🎋" };
@@ -128,9 +128,50 @@
   const numeroDia = (d = new Date()) => Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / 86400000);
   const esHoy = (f) => new Date(f).toDateString() === new Date().toDateString();
 
+  // ---------- CALENDARIO (aniversarios). Igual que cumple_en en schema.sql ----------
+  const aFecha = (t) => { if (!t) return null; const [y, m, d] = String(t).slice(0, 10).split("-").map(Number); return new Date(y, m - 1, d); };
+  const aTexto = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const soloDia = (d = new Date()) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const ultimoDelMes = (d) => new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  // Cuántos meses cumplen ese día (0 si ese día no es "aniversario de mes")
+  function cumpleEn(inicio, dia) {
+    const i = aFecha(inicio), d = soloDia(dia);
+    if (!i || d <= i) return 0;
+    const mismoDia = d.getDate() === i.getDate() || (i.getDate() > d.getDate() && d.getDate() === ultimoDelMes(d));
+    return mismoDia ? (d.getFullYear() - i.getFullYear()) * 12 + d.getMonth() - i.getMonth() : 0;
+  }
+  const textoMeses = (n) => (n % 12 === 0 ? `${n / 12} ${n === 12 ? "año" : "años"}` : `${n} ${n === 1 ? "mes" : "meses"}`);
+  // Tiempo juntos: { anios, meses, dias, totalDias }
+  function tiempoJuntos(inicio, hoy = new Date()) {
+    const i = aFecha(inicio), h = soloDia(hoy);
+    if (!i || h < i) return null;
+    let meses = (h.getFullYear() - i.getFullYear()) * 12 + h.getMonth() - i.getMonth();
+    if (h.getDate() < i.getDate() && h.getDate() !== ultimoDelMes(h)) meses--;
+    const desde = new Date(i.getFullYear(), i.getMonth() + meses, Math.min(i.getDate(), ultimoDelMes(new Date(i.getFullYear(), i.getMonth() + meses, 1))));
+    return { anios: Math.floor(meses / 12), meses: meses % 12, dias: Math.round((h - desde) / 86400e3), totalDias: Math.round((h - i) / 86400e3) };
+  }
+  // Próximas fechas: aniversarios (meses/años) y fechas especiales (cada año)
+  function proximasFechas(pareja, cuantas = 6, hoy = new Date()) {
+    const h = soloDia(hoy), lista = [];
+    if (pareja?.fecha_inicio) {
+      for (let k = 0; k < 400 && lista.filter((x) => x.tipo === "aniversario").length < 2; k++) {
+        const d = new Date(h.getFullYear(), h.getMonth(), h.getDate() + k), n = cumpleEn(pareja.fecha_inicio, d);
+        if (n > 0) lista.push({ tipo: "aniversario", fecha: d, faltan: k, emoji: n % 12 === 0 ? "🎉" : "💕", titulo: `Cumplen ${textoMeses(n)}`, meses: n });
+      }
+    }
+    for (const f of pareja?.fechas || []) {
+      const o = aFecha(f.fecha); if (!o) continue;
+      let d = new Date(h.getFullYear(), o.getMonth(), o.getDate());
+      if (d < h) d = new Date(h.getFullYear() + 1, o.getMonth(), o.getDate());
+      lista.push({ tipo: "especial", fecha: d, faltan: Math.round((d - h) / 86400e3), emoji: f.emoji || "🎉", titulo: f.titulo });
+    }
+    return lista.sort((a, b) => a.faltan - b.faltan).slice(0, cuantas);
+  }
+
   globalThis.Reglas = {
     ETAPAS, PUNTOS, TOPES, TIENDA, DESAFIOS, REGALO_DIARIO, MONEDAS_INICIALES, ABANDONO, MONEDAS_JUEGO,
     etapaDe, nivelDe, hambre, energia, limpieza, carino, diasSinCuidado, diasParaIrse, esDeNoche,
     animoVisible, horasDesde, fechaCorta, haceCuanto, numeroDia, esHoy,
+    aFecha, aTexto, cumpleEn, textoMeses, tiempoJuntos, proximasFechas,
   };
 })();

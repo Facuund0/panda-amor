@@ -75,6 +75,11 @@ class Puente(
     }
 
     // ---------- panda flotante y permisos ----------
+    // ---------- ubicación en vivo ----------
+    @JavascriptInterface fun iniciarVivo(url: String, anonKey: String, clave: String, pareja: String): Boolean = VivoService.iniciar(ctx, url, anonKey, clave, pareja)
+    @JavascriptInterface fun detenerVivo() = VivoService.detener(ctx)
+    @JavascriptInterface fun vivoActivo(): Boolean = VivoService.activo(ctx)
+
     // ---------- notificaciones push ----------
     @JavascriptInterface fun tokenPush(): String = Push.token(ctx)
     @JavascriptInterface fun pushListo(si: Boolean) = Push.marcarListo(ctx, si)

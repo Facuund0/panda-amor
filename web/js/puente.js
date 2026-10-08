@@ -27,11 +27,17 @@
     ubicacion: [0, 60],
     sentir: [0, 120, 90, 120, 90, 120],
     foto: [0, 80, 60, 80],
+    alerta: [0, 400, 150, 400, 150, 400, 150, 900],
     aviso: [0, 300, 200, 300],
   };
 
   const Puente = {
     esAndroid: () => !!A(),
+    // Ubicación en vivo (app Android 1.29+): el celular manda su ubicación aunque la app esté cerrada
+    vivoDisponible() { try { return !!A()?.iniciarVivo; } catch { return false; } },
+    iniciarVivo(url, key, clave, pareja) { try { return !!A().iniciarVivo(url, key, clave, pareja); } catch { return false; } },
+    detenerVivo() { try { A()?.detenerVivo?.(); } catch {} },
+    vivoActivo() { try { return !!A()?.vivoActivo?.(); } catch { return false; } },
     // Notificaciones push (Firebase): token de este celular ("" en el navegador o app vieja)
     tokenPush() { try { return A()?.tokenPush ? A().tokenPush() || "" : ""; } catch { return ""; } },
     // ¿El panda lee los avisos en voz alta con la app cerrada? (solo app Android 1.27+)

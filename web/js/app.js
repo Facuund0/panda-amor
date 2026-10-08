@@ -179,8 +179,11 @@
               <button class="accion amor" data-accion="necesito_amor"><i>📳</i>Necesito amor<small>le vibra</small></button>
               <button class="accion" data-accion="ubicacion"><i>📍</i>¿Dónde estás?<small>ubicación</small></button>
               <button class="accion" data-accion="hablar"><i>💬</i>Hablar<small>con IA</small></button>
+              <button class="accion alerta-btn" data-accion="alerta"><i>🚨</i>¡Alerta!<small>en broma</small></button>
+              <button class="accion amor" data-accion="fechas"><i>📅</i>Nuestras fechas<small>aniversarios</small></button>
             </div>
           </div>
+          <div class="tarjeta tarjeta-fecha" id="tarjeta-fecha" hidden></div>
           <div class="tarjeta tarjeta-ubic" id="tarjeta-ubic" hidden></div>
           <div class="tarjeta pregunta-dia" id="pregunta-dia"></div>
         </section>
@@ -218,6 +221,7 @@
     try { usoGemini = await D.usoGemini(); } catch {}
     pintarPregunta();
     pintarTarjetaUbicacion();
+    pintarFechaHoy();
     revisarDesafiosPendientes();
 
     // saludo (una vez por apertura)
@@ -321,7 +325,7 @@
     $$(".vista").forEach((s) => (s.hidden = s.dataset.vista !== v));
     $$("[data-pestana]").forEach((b) => b.classList.toggle("activa", b.dataset.pestana === v));
     $(".escribir")?.remove();
-    if (v === "mensajes") { sinLeer = 0; $("#punto-msj").hidden = true; pintarChat(); }
+    if (v === "mensajes") { sinLeer = 0; $("#punto-msj").hidden = true; pintarChat(); cargarChat(); }
     if (v === "recuerdos") pintarRecuerdos();
     if (v === "tienda") pintarTienda();
     if (v !== "panda" && modo === "banio") salirBanio();
@@ -364,6 +368,8 @@
     if (a === "frase") return formularioFrase();
     if (a === "ubicacion") return menuUbicacion();
     if (a === "hablar") return abrirChatPanda();
+    if (a === "alerta") return formularioAlerta();
+    if (a === "fechas") return verCalendario();
     if (a === "necesito_amor") return confirmarNecesitoAmor();
     hacer(a);
   }
@@ -398,6 +404,7 @@
     else if (tipo === "frase") dicho = F.frase("frase", n);
     else if (tipo === "necesito_amor") { dicho = F.frase("necesito_amor_enviado", n); panda.reaccion("necesita"); }
     else if (tipo === "pedir_ubicacion") dicho = F.frase("pedir_ubicacion", n);
+    else if (tipo === "alerta") { dicho = `¡Alerta enviada! A ${n.otro} le va a sonar la alarma 🚨`; panda.reaccion("sorpresa"); }
     if (r.nota === "racha") { panda.reaccion("amor"); dicho = F.frase("racha", n); }
     const ganadas = r.monedas_ganadas || 0;
     if (r.sumo + r.extra > 0 || ganadas) aviso([r.sumo + r.extra > 0 ? `+${r.sumo + r.extra} 💗${r.extra ? ` (racha +${r.extra})` : ""}` : "", ganadas ? `+${ganadas} 🪙` : ""].filter(Boolean).join(" · "));
@@ -455,31 +462,84 @@
   // ---------------------------------------------------------------
   //  UBICACIÓN (siempre con permiso de la otra persona)
   // ---------------------------------------------------------------
+  // "En vivo": la otra persona activó compartir en vivo y el celular mandó señal hace menos de 15 min
+  const enVivo = (u) => !!u?.en_vivo && R.horasDesde(u.actualizada) < 0.25;
+  const textoUbic = (u) => enVivo(u)
+    ? `<span class="en-vivo">● En vivo</span> · actualizada ${R.haceCuanto(u.actualizada)}`
+    : `Compartida <b>${R.haceCuanto(u.actualizada)}</b>${u.en_vivo ? " (en vivo, sin señal ahora)" : ""}`;
+
   async function menuUbicacion() {
     if (!E.otro) return aviso("Primero tu pareja se tiene que unir con el código");
     let u = null, mia = null;
     try { u = await D.ubicacionDe(E.otro.id); } catch {}
     try { mia = await D.ubicacionDe(E.yo.id); } catch {}
-    abrirHoja(`<h2>📍 ¿Dónde está ${esc(nombres().otro)}?</h2>
-      ${u ? `<p class="nota" style="margin-bottom:10px">Compartió su ubicación <b>${R.haceCuanto(u.actualizada)}</b>${u.precision_m ? ` · precisión ${Math.round(u.precision_m)} m` : ""}</p>${mapa(u)}`
+    const n = nombres();
+    const vivoMio = P.vivoActivo() || (D.modo === "demo" && mia?.en_vivo);
+    abrirHoja(`<h2>📍 ¿Dónde está ${esc(n.otro)}?</h2>
+      ${u ? `<p class="nota" style="margin-bottom:10px" id="u-estado">${textoUbic(u)}${u.precision_m ? ` · precisión ${Math.round(u.precision_m)} m` : ""}</p><div id="u-mapa">${mapa(u)}</div>`
           : `<p class="nota" style="margin-bottom:12px">Todavía no compartió su ubicación. Tocá "Preguntarle dónde está" y cuando acepte la vas a ver acá en el mapa.</p>`}
       <div style="display:grid;gap:10px;margin-top:14px">
-        <button class="btn btn-ancho" id="u-pedir">${u ? "Pedirle una más nueva" : "Preguntarle dónde está"}</button>
-        <button class="btn btn-sec btn-ancho" id="u-mia">Compartir la mía</button>
+        ${enVivo(u) ? "" : `<button class="btn btn-ancho" id="u-pedir">${u ? "Pedirle una más nueva" : "Preguntarle dónde está"}</button>`}
+        <button class="btn btn-sec btn-ancho" id="u-mia">Compartir la mía (una vez)</button>
       </div>
-      ${mia ? `<p class="nota" style="margin-top:12px">Tu última ubicación compartida: ${R.haceCuanto(mia.actualizada)}. <button class="btn btn-chico" id="u-ver-mia">Ver</button></p>` : ""}
-      <p class="nota" style="margin-top:12px">${esc(nombres().otro)} decide si la comparte. Solo se guarda la última ubicación, no un historial.</p>`);
-    $("#u-pedir").addEventListener("click", () => { cerrarHoja(); hacer("pedir_ubicacion"); });
+      <div class="tarjeta vivo-caja">
+        <div class="fila" style="margin:0"><div>📡 Compartir la mía <b>en vivo</b>
+          <div class="desc">${esc(n.otro)} ve dónde estás todo el tiempo, aunque tengas la app cerrada. Lo apagás cuando quieras.</div></div>
+          ${P.vivoDisponible() || D.modo === "demo" ? `<label class="interruptor"><input type="checkbox" id="u-vivo" ${vivoMio ? "checked" : ""}><span></span></label>` : ""}</div>
+        ${P.vivoDisponible() || D.modo === "demo" ? `<p class="nota" style="margin-top:6px">Gasta un poco más de batería y muestra una notificación fija mientras está prendido.</p>`
+          : `<p class="nota" style="margin-top:6px">${P.esAndroid() ? "Actualizá la app (Ajustes → Buscar actualización) para usarlo." : "Funciona en la app de Android."}</p>`}
+      </div>
+      ${mia && !vivoMio ? `<p class="nota" style="margin-top:12px">Tu última ubicación compartida: ${R.haceCuanto(mia.actualizada)}. <button class="btn btn-chico" id="u-ver-mia">Ver</button></p>` : ""}
+      <p class="nota" style="margin-top:12px">Cada uno decide si comparte la suya. Solo se guarda la última ubicación, nunca un historial.</p>`);
+    $("#u-pedir")?.addEventListener("click", () => { cerrarHoja(); hacer("pedir_ubicacion"); });
     $("#u-mia").addEventListener("click", () => { cerrarHoja(); compartirMiUbicacion(); });
     $("#u-ver-mia")?.addEventListener("click", () => verUbicacion(mia, "Tu ubicación compartida"));
+    $("#u-vivo")?.addEventListener("change", async (e) => {
+      const ok = e.target.checked ? await activarVivo() : await apagarVivo();
+      if (!ok) e.target.checked = !e.target.checked;
+    });
+    if (enVivo(u)) seguirEnVivo(u);
+  }
+
+  // Mientras la ventana del mapa está abierta y la otra persona comparte en vivo, se actualiza sola
+  function seguirEnVivo(ultima) {
+    const t = setInterval(async () => {
+      const caja = $("#u-mapa");
+      if (!caja || $("#hoja").hidden) return clearInterval(t);
+      let u = null;
+      try { u = await D.ubicacionDe(E.otro.id); } catch { return; }
+      if (!u) return;
+      $("#u-estado") && ($("#u-estado").innerHTML = textoUbic(u) + (u.precision_m ? ` · precisión ${Math.round(u.precision_m)} m` : ""));
+      // solo recarga el mapa si se movió (más de ~15 m)
+      if (Math.hypot(u.lat - ultima.lat, (u.lng - ultima.lng) * Math.cos(u.lat * Math.PI / 180)) * 111000 > 15) { caja.innerHTML = mapa(u); ultima = u; }
+    }, 20000);
+  }
+
+  async function activarVivo() {
+    if (D.modo === "demo") { await D.iniciarVivo(); aviso("📡 (demo) Compartiendo en vivo"); return true; }
+    if (!P.permisos().ubicacion) { P.pedirPermiso("ubicacion"); aviso("Permití la ubicación y volvé a prenderlo"); return false; }
+    try {
+      const r = await D.iniciarVivo();
+      const ok = P.iniciarVivo(D.cfg.supabaseUrl, D.cfg.supabaseAnonKey, r.clave, nombres().otro);
+      if (!ok) { await D.detenerVivo(); aviso("No se pudo prender: revisá el permiso de ubicación"); return false; }
+      aviso(`📡 ${nombres().otro} ya puede ver dónde estás en vivo`);
+      return true;
+    } catch (e) { aviso(msjError(e)); return false; }
+  }
+  async function apagarVivo() {
+    P.detenerVivo();
+    try { await D.detenerVivo(); } catch {}
+    aviso("Dejaste de compartir en vivo");
+    return true;
   }
 
   // Muestra un mapa en una ventana (al recibir la ubicación, o desde Mensajes)
   function verUbicacion(u, titulo) {
     if (!u) return menuUbicacion();
     abrirHoja(`<h2>📍 ${esc(titulo)}</h2>
-      <p class="nota" style="margin-bottom:10px">Compartida ${R.haceCuanto(u.actualizada)}${u.precision_m ? ` · precisión ${Math.round(u.precision_m)} m` : ""}</p>
-      ${mapa(u)}`);
+      <p class="nota" style="margin-bottom:10px" id="u-estado">${textoUbic(u)}${u.precision_m ? ` · precisión ${Math.round(u.precision_m)} m` : ""}</p>
+      <div id="u-mapa">${mapa(u)}</div>`);
+    if (enVivo(u) && titulo.startsWith("Acá está")) seguirEnVivo(u);
   }
   async function verUbicacionDelOtro() {
     let u = null;
@@ -496,9 +556,9 @@
     try { u = await D.ubicacionDe(E.otro.id); } catch {}
     if (!u) { t.hidden = true; return; }
     t.hidden = false;
-    t.innerHTML = `<div class="fila" style="margin:0"><div>📍 <b>${esc(nombres().otro)}</b> compartió dónde está<div class="desc">${R.haceCuanto(u.actualizada)}</div></div>
+    t.innerHTML = `<div class="fila" style="margin:0"><div>📍 <b>${esc(nombres().otro)}</b> ${enVivo(u) ? "está compartiendo en vivo" : "compartió dónde está"}<div class="desc">${textoUbic(u)}</div></div>
       <button class="btn btn-chico" id="t-ver-ubic">Ver mapa</button></div>`;
-    $("#t-ver-ubic").addEventListener("click", () => verUbicacion(u, `Acá está ${nombres().otro}`));
+    $("#t-ver-ubic").addEventListener("click", () => verUbicacionDelOtro());
   }
 
   function mapa(u) {
@@ -532,6 +592,7 @@
   async function alRecibir({ tipo, fila }) {
     if (tipo === "mascota") {
       const antes = R.etapaDe(E.mascota.amor).indice;
+      if (fila.pregunta_dia && fila.pregunta_dia !== E.mascota.pregunta_dia) setTimeout(pintarPregunta, 0);
       E.mascota = { ...E.mascota, ...fila };
       actualizarTodo(R.etapaDe(E.mascota.amor).indice > antes);
       return;
@@ -539,6 +600,7 @@
     if (tipo === "conexion") return;
     const ev = fila;
     if (!eventos.some((x) => x.id === ev.id)) eventos.unshift(ev);
+    if (TIPOS_CHAT.includes(ev.tipo) && !chatMsjs.some((x) => x.id === ev.id)) chatMsjs.unshift(ev);
     if (vista === "mensajes") pintarChat();
     if (vista === "panda" && ev.tipo === "pregunta") pintarPregunta();
     if (ev.de === E.yo.id) return;
@@ -563,6 +625,8 @@
       if (s && F.TRISTES.includes(s.id)) { panda.reaccion("triste"); alertaSentir(ev, s); }
       else panda.reaccion("amor");
     }
+    if (ev.tipo === "alerta") { mostrarAlarma(ev); texto = F.deOtro(ev.texto === "hombre" ? "alerta_hombre" : "alerta_mujer", n); }
+    if (ev.tipo === "ubicacion" && ev.texto === "en_vivo") texto = F.deOtro("ubicacion_vivo", n);
     if (ev.tipo === "foto") { panda.reaccion("sorpresa"); aviso(`📸 ${n.otro} te mandó una foto · mirala en Mensajes`); }
     if (["banio", "despertar", "dormir", "comer", "juego"].includes(ev.tipo)) { E = await D.estado(); actualizarTodo(false); }
     if (ev.tipo === "banio" || ev.tipo === "juego") panda.reaccion("amor");
@@ -595,8 +659,18 @@
   // ---------------------------------------------------------------
   //  MENSAJES
   // ---------------------------------------------------------------
+  // Los mensajes se piden aparte de los eventos de cuidado: antes, con muchos mimos y comidas,
+  // los mensajes viejos "desaparecían" de la lista (solo se mostraban los últimos 80 eventos).
+  let chatMsjs = [];
+  const TIPOS_CHAT = ["mensaje", "frase", "sentir", "foto", "ubicacion", "pregunta", "necesito_amor", "pedir_ubicacion", "alerta", "sistema"];
+  async function cargarChat() {
+    try { chatMsjs = await D.eventos({ limite: 300, tipos: TIPOS_CHAT }); } catch { return; }
+    if (vista === "mensajes") pintarChat();
+  }
   function pintarChat() {
-    const lista = eventos.slice().reverse();
+    const porId = new Map();
+    [...chatMsjs, ...eventos].forEach((e) => porId.set(e.id, e));
+    const lista = [...porId.values()].sort((a, b) => new Date(a.creado) - new Date(b.creado));
     const yoId = E.yo.id;
     const nombreDe = (id) => (id === yoId ? E.yo.nombre : E.otro?.nombre || "");
     const sistema = {
@@ -620,7 +694,9 @@
         else filas.push(`<div class="sistema">🐣 Nació ${esc(E.mascota.nombre)} · ${R.fechaCorta(e.creado)}</div>`);
       } else if (e.tipo === "ubicacion") {
         const quien = esc(nombreDe(e.de));
-        filas.push(`<button class="sistema sistema-ubic" data-ver-ubic="${e.de}">📍 ${quien} compartió su ubicación · ${R.fechaCorta(e.creado)} · <u>ver mapa</u></button>`);
+        filas.push(`<button class="sistema sistema-ubic" data-ver-ubic="${e.de}">${e.texto === "en_vivo" ? "📡" : "📍"} ${quien} ${e.texto === "en_vivo" ? "empezó a compartir su ubicación en vivo" : "compartió su ubicación"} · ${R.fechaCorta(e.creado)} · <u>ver mapa</u></button>`);
+      } else if (e.tipo === "alerta") {
+        filas.push(`<div class="sistema sistema-alerta">🚨 ${esc(nombreDe(e.de))} mandó una alerta: ¿estás con ${e.texto === "hombre" ? "otro hombre" : "otra mujer"}? · ${R.fechaCorta(e.creado)}</div>`);
       } else if (sistema[e.tipo]) {
         const extraTxt = e.tipo === "comer" ? ` ${R.TIENDA[e.texto]?.emoji || ""}` : e.tipo === "juego" ? ` (${esc(e.texto)} pts)` : "";
         const txt = `${esc(nombreDe(e.de))} ${sistema[e.tipo]}${extraTxt}`;
@@ -682,6 +758,8 @@
     try { anteriores = (await D.eventos({ limite: 30, tipos: ["sistema"] })).filter((e) => String(e.texto).startsWith("se_fue|")); } catch {}
     $("#recuerdos").innerHTML = `
       <h2 class="titulo-vista">Recuerdos 🌸</h2>
+      <div class="tarjeta"><h3>📅 Nuestras fechas</h3>${htmlCalendario()}
+        <button class="btn btn-sec btn-ancho btn-chico" id="r-fechas" style="margin-top:10px">✏️ Editar fechas</button></div>
       <div class="tarjeta"><div class="stats">
         <div><b>${dias}</b><span>días juntos</span></div>
         <div><b>${m.mejor_racha}</b><span>mejor racha</span></div>
@@ -698,7 +776,9 @@
           <div class="dibujo">${svgPanda(i)}</div>${i > et.indice ? `🔒 ${e.desde} 💗` : `${e.emoji} ${e.nombre}`}</div>`).join("")}
       </div></div>
       <div class="tarjeta"><h3>💖 Guardados</h3><div class="lista-favs">
-        ${favs.length ? favs.map((f) => `<div class="fav-item">${esc(f.texto)}<small>${f.de === E.yo.id ? E.yo.nombre : E.otro?.nombre} · ${R.fechaCorta(f.creado)}</small></div>`).join("") : `<p class="nota">Tocá el 🤍 de un mensaje para guardarlo acá para siempre.</p>`}
+        ${favs.length ? favs.map((f) => `<div class="fav-item">${f.tipo === "foto"
+            ? `<button class="foto-btn" data-ver-foto="${f.ref}"><img data-foto="${f.ref}" alt="Foto"></button>${f.texto && f.texto !== "📸" ? esc(f.texto) : ""}`
+            : esc(f.texto)}<small>${f.de === E.yo.id ? E.yo.nombre : E.otro?.nombre} · ${R.fechaCorta(f.creado)}</small></div>`).join("") : `<p class="nota">Tocá el 🤍 de un mensaje o una foto para guardarlo acá para siempre.</p>`}
       </div></div>
       <div class="tarjeta"><h3>💌 Últimas frases</h3><div class="lista-favs">
         ${frases.length ? frases.map((f) => `<div class="fav-item">${esc(f.texto)}<small>${f.de === E.yo.id ? E.yo.nombre : E.otro?.nombre} · ${R.fechaCorta(f.creado)}</small></div>`).join("") : `<p class="nota">Todavía no se dedicaron frases.</p>`}
@@ -706,6 +786,10 @@
       ${anteriores.length ? `<div class="tarjeta"><h3>🎒 Pandas que se fueron</h3><div class="lista-favs">
         ${anteriores.map((a) => { const [, nom, amor, dias] = a.texto.split("|"); return `<div class="fav-item">${esc(nom)} · ${R.etapaDe(+amor).emoji} ${R.etapaDe(+amor).nombre}<small>Estuvo ${dias} días con ustedes · se fue el ${R.fechaCorta(a.creado)}</small></div>`; }).join("")}
       </div></div>` : ""}`;
+    // fotos guardadas con 💖: se cargan y se pueden ver en grande
+    cargarFotos($("#recuerdos"));
+    $$("#recuerdos [data-ver-foto]").forEach((b) => b.addEventListener("click", () => verFoto(b.dataset.verFoto)));
+    $("#r-fechas").addEventListener("click", editarFechas);
   }
 
   // ---------------------------------------------------------------
@@ -761,6 +845,7 @@
         <div class="campo"><label>Tu nombre</label><input id="a-nombre" value="${esc(E.yo.nombre)}" maxlength="30"></div>
         <div class="campo"><label>Nombre del panda</label><input id="a-panda" value="${esc(E.mascota.nombre)}" maxlength="20"></div>
         <button class="btn btn-sec btn-ancho btn-chico" id="a-guardar">Guardar nombres</button>
+        <button class="btn btn-sec btn-ancho btn-chico" id="a-fechas" style="margin-top:8px">📅 Fecha en que empezamos y fechas especiales</button>
         <div class="fila" style="margin-top:8px"><div>Código de la pareja<div class="desc">Para que se una tu pareja</div></div><b style="letter-spacing:2px">${esc(E.pareja.codigo)}</b></div>
         ${clave ? `<div class="fila"><div>Tu clave de recuperación<div class="desc">Guardala: sirve si cambiás de celular</div></div><b style="letter-spacing:2px">${esc(clave)}</b></div>` : ""}
       </div>
@@ -774,6 +859,7 @@
           <button class="btn btn-sec btn-chico" data-sim="pedir_ubicacion">📍 Pide ubicación</button>
           <button class="btn btn-sec btn-chico" data-sim="sentir">😢 Está triste</button>
           <button class="btn btn-sec btn-chico" data-sim="foto">📸 Manda foto</button>
+          <button class="btn btn-sec btn-chico" data-sim="alerta">🚨 Manda alerta</button>
           <button class="btn btn-sec btn-chico" data-abandono="3.2">🥺 3 días sin cuidarlo</button>
           <button class="btn btn-sec btn-chico" data-abandono="7.5">🎒 7 días (se va)</button>
           <button class="btn btn-sec btn-chico" data-monedas="200">🪙 +200 monedas</button>
@@ -797,6 +883,7 @@
     $("#a-tono").addEventListener("change", (e) => { Voz.tono = +e.target.value; P.ponerTonoVoz(Voz.tono); decir("¡Hola! ¿Así te gusta mi voz?"); });
     $("#a-voz").addEventListener("change", (e) => { Voz.activa = e.target.checked; });
     $("#a-probar").addEventListener("click", () => decir(`Hola ${nombres().yo}, soy ${nombres().panda}. ¡Te quiero mucho!`));
+    $("#a-fechas").addEventListener("click", editarFechas);
     $("#a-auto").addEventListener("change", async (e) => { E = await D.ajustes({ auto: e.target.checked }); });
     $("#a-guardar").addEventListener("click", async () => {
       try { E = await D.ajustes({ nombre: $("#a-nombre").value.trim(), panda: $("#a-panda").value.trim() }); actualizarTodo(false); aviso("Guardado 💗"); } catch (er) { aviso(er.message); }
@@ -872,7 +959,11 @@
     guardar("panda-frase-intento", E.hoy);
     try {
       const r = await D.panda("frase_dia");
-      if (r.frase) { E.mascota.frase_dia = r.frase; E.mascota.frase_fecha = E.hoy; actualizarTodo(false); }
+      if (r.frase) {
+        E.mascota.frase_dia = r.frase; E.mascota.frase_fecha = E.hoy;
+        if (r.pregunta) E.mascota.pregunta_dia = r.pregunta;
+        actualizarTodo(false); pintarPregunta();
+      }
     } catch {}
   }
 
@@ -892,6 +983,8 @@
       else if (a === "necesito_amor") alertaNecesitaAmor();
       else if (a === "sentir") irA("mensajes");
       else if (a === "ver_ubicacion") verUbicacionDelOtro();
+      else if (a === "alerta") { const ev = [...chatMsjs, ...eventos].find((e) => e.tipo === "alerta" && e.de !== E.yo.id); if (ev) mostrarAlarma(ev, false); }
+      else if (a === "alerta_no") responderAlerta();
     }, 900);
   }
   // La app Android también puede pedirlo sin recargar
@@ -1231,7 +1324,8 @@
   async function pintarPregunta() {
     const caja = $("#pregunta-dia");
     if (!caja) return;
-    const pregunta = F.preguntaDelDia(R.numeroDia());
+    // la genera Gemini una vez por día (la misma para los dos); si todavía no hay, una de la lista
+    const pregunta = E.mascota.frase_fecha === E.hoy && E.mascota.pregunta_dia ? E.mascota.pregunta_dia : F.preguntaDelDia(R.numeroDia());
     let resp = [];
     try { resp = (await D.eventos({ limite: 8, tipos: ["pregunta"] })).filter((e) => R.esHoy(e.creado)); } catch {}
     const mia = resp.find((e) => e.de === E.yo.id), suya = resp.find((e) => e.de !== E.yo.id);
@@ -1249,6 +1343,146 @@
       const r = await hacer("pregunta", t);
       if (r) { eventos.unshift({ id: r.evento, de: E.yo.id, tipo: "pregunta", texto: t, creado: new Date().toISOString() }); pintarPregunta(); }
     });
+  }
+
+  // ---------- ALERTA EN BROMA 🚨 ("¿estás con otra mujer / otro hombre?") ----------
+  function formularioAlerta() {
+    if (!E.otro) return aviso("Primero tu pareja se tiene que unir con el código");
+    const n = nombres();
+    abrirHoja(`<div class="alerta-amor"><div class="grande">🚨</div><h2>Alerta en broma</h2>
+      <p class="nota" style="margin-bottom:16px">A ${esc(n.otro)} le suena una alarma y le aparece una pantalla de alerta. ¡Es en joda! 😂</p>
+      <div style="display:grid;gap:10px">
+        <button class="btn btn-ancho btn-alerta" data-alerta="mujer">🚨 ¿Estás con otra mujer?</button>
+        <button class="btn btn-ancho btn-alerta" data-alerta="hombre">🚨 ¿Estás con otro hombre?</button>
+      </div></div>`);
+    $$("[data-alerta]").forEach((b) => b.addEventListener("click", () => { cerrarHoja(); hacer("alerta", b.dataset.alerta); }));
+  }
+
+  // Sirena con el audio del navegador (unos segundos)
+  function sirena(segundos = 3.2) {
+    try {
+      const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
+      const c = new C(), o = c.createOscillator(), g = c.createGain();
+      o.type = "sawtooth"; g.gain.value = 0.07; o.connect(g); g.connect(c.destination);
+      const t0 = c.currentTime;
+      for (let i = 0; i < segundos * 2; i++) { o.frequency.setValueAtTime(650, t0 + i * 0.5); o.frequency.linearRampToValueAtTime(1250, t0 + i * 0.5 + 0.45); }
+      g.gain.setValueAtTime(0.07, t0 + segundos - 0.2); g.gain.linearRampToValueAtTime(0, t0 + segundos);
+      o.start(); o.stop(t0 + segundos); o.onended = () => c.close();
+    } catch {}
+  }
+
+  function mostrarAlarma(ev, conSonido = true) {
+    $(".alarma")?.remove();
+    const n = nombres(), quien = ev.de === E.yo.id ? n.yo : n.otro;
+    const v = document.createElement("div");
+    v.className = "alarma";
+    v.innerHTML = `<div class="alarma-luz"></div>
+      <div class="alarma-caja">
+        <div class="alarma-sirena">🚨</div>
+        <h2>¡ALERTA!</h2>
+        <p><b>${esc(quien)}</b> quiere saber:</p>
+        <p class="alarma-pregunta">¿Estás con ${ev.texto === "hombre" ? "otro hombre" : "otra mujer"}? 🤨</p>
+        <div class="alarma-panda" id="alarma-panda"></div>
+        <div style="display:grid;gap:10px;width:100%">
+          <button class="btn btn-ancho" id="al-no">😇 ¡No, te lo juro!</button>
+          <button class="btn btn-sec btn-ancho" id="al-risa">😂 Jajaja, cerrar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(v);
+    const p = new Panda($("#alarma-panda"), { etapa: R.etapaDe(E.mascota.amor).indice });
+    p.setAccesorios(E.mascota.puestos || []);
+    p.reaccion("sorpresa"); setTimeout(() => p.reaccion("necesita"), 700);
+    v.cerrar = () => { p.destruir(); v.remove(); };
+    $("#al-risa").addEventListener("click", v.cerrar);
+    $("#al-no").addEventListener("click", () => { v.cerrar(); responderAlerta(); });
+    if (conSonido) { sirena(); P.vibrar("alerta"); }
+    panda?.reaccion("sorpresa");
+  }
+  async function responderAlerta() {
+    try { await D.accion("mensaje", "😇 ¡Noo, te lo juro! Solo te quiero a vos 💗"); aviso("Le dijiste que no 😇"); } catch (e) { aviso(msjError(e)); }
+  }
+
+  // ---------- CALENDARIO: aniversarios y fechas especiales ----------
+  const MESES_C = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  const fechaLarga = (d) => `${d.getDate()} de ${MESES_C[d.getMonth()]}`;
+  const faltaTxt = (k) => (k === 0 ? "¡hoy!" : k === 1 ? "mañana" : `en ${k} días`);
+
+  function htmlCalendario() {
+    const pa = E.pareja || {}, n = nombres();
+    const tj = R.tiempoJuntos(pa.fecha_inicio), prox = R.proximasFechas(pa, 6);
+    if (!pa.fecha_inicio && !(pa.fechas || []).length) return `<p class="nota">Todavía no cargaron sus fechas. Poné el día en que empezaron y les aviso cuando cumplan meses y años 💕</p>`;
+    // mini calendario del mes con las fechas marcadas
+    const hoy = new Date(), y = hoy.getFullYear(), mes = hoy.getMonth();
+    const primero = (new Date(y, mes, 1).getDay() + 6) % 7, dias = new Date(y, mes + 1, 0).getDate();
+    const marcas = {};
+    for (let d = 1; d <= dias; d++) { const f = new Date(y, mes, d); if (R.cumpleEn(pa.fecha_inicio, f) > 0) marcas[d] = "💕"; }
+    for (const f of pa.fechas || []) { const o = R.aFecha(f.fecha); if (o && o.getMonth() === mes) marcas[o.getDate()] = f.emoji || "🎉"; }
+    let celdas = "";
+    for (let i = 0; i < primero; i++) celdas += `<span></span>`;
+    for (let d = 1; d <= dias; d++) celdas += `<span class="${d === hoy.getDate() ? "hoy" : ""} ${marcas[d] ? "marca" : ""}">${d}${marcas[d] ? `<i>${marcas[d]}</i>` : ""}</span>`;
+    return `${tj ? `<div class="juntos"><b>${tj.anios ? `${tj.anios} ${tj.anios === 1 ? "año" : "años"}, ` : ""}${tj.meses} ${tj.meses === 1 ? "mes" : "meses"} y ${tj.dias} ${tj.dias === 1 ? "día" : "días"}</b><span>juntos · ${tj.totalDias} días 💗</span></div>` : ""}
+      <div class="calendario"><div class="cal-titulo">${MESES_C[mes]} ${y}</div>
+        <div class="cal-dias">${["L", "M", "M", "J", "V", "S", "D"].map((d) => `<b>${d}</b>`).join("")}${celdas}</div></div>
+      ${prox.length ? `<div class="lista-fechas">${prox.map((f) => `<div class="fecha-item ${f.faltan === 0 ? "es-hoy" : ""}"><span class="fe">${f.emoji}</span><div><b>${esc(f.titulo)}</b><small>${fechaLarga(f.fecha)} · ${faltaTxt(f.faltan)}</small></div></div>`).join("")}</div>` : ""}`;
+  }
+
+  function verCalendario() {
+    abrirHoja(`<h2>📅 Nuestras fechas</h2>${htmlCalendario()}
+      <button class="btn btn-sec btn-ancho" id="cal-editar" style="margin-top:14px">✏️ Editar fechas</button>`);
+    $("#cal-editar").addEventListener("click", editarFechas);
+  }
+
+  function editarFechas() {
+    const pa = E.pareja || {};
+    let lista = [...(pa.fechas || [])];
+    const EMOJIS = ["🎂", "💍", "✈️", "🎉", "💋", "🏠", "🐾", "⭐"];
+    const pintar = () => {
+      abrirHoja(`<h2>✏️ Nuestras fechas</h2>
+        <div class="campo"><label>¿Qué día empezaron?</label><input type="date" id="cal-inicio" value="${pa.fecha_inicio || ""}" max="${R.aTexto(new Date())}"></div>
+        <p class="nota" style="margin:-4px 0 12px">Con esto les aviso cuando cumplan meses y años (y el día antes).</p>
+        <h3 style="margin:6px 0">Fechas especiales <small class="nota">(se repiten cada año)</small></h3>
+        <div class="lista-fechas">${lista.map((f, i) => `<div class="fecha-item"><span class="fe">${f.emoji}</span><div><b>${esc(f.titulo)}</b><small>${fechaLarga(R.aFecha(f.fecha))}</small></div><button class="btn-chico" data-quitar="${i}" aria-label="Quitar">✕</button></div>`).join("") || `<p class="nota">Por ejemplo: sus cumpleaños, el día que se conocieron, un viaje…</p>`}</div>
+        <div class="campo"><label>Nueva fecha</label><input id="cal-titulo" maxlength="40" placeholder="Ej: Cumple de ${esc(nombres().otro)}"></div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end">
+          <div class="campo" style="margin:0"><input type="date" id="cal-fecha"></div>
+          <select id="cal-emoji" class="select-emoji">${EMOJIS.map((e) => `<option>${e}</option>`).join("")}</select>
+        </div>
+        <button class="btn btn-sec btn-ancho btn-chico" id="cal-agregar" style="margin-top:8px">➕ Agregar fecha</button>
+        <button class="btn btn-ancho" id="cal-guardar" style="margin-top:14px">Guardar</button>`);
+      $$("[data-quitar]").forEach((b) => b.addEventListener("click", () => { pa.fecha_inicio = $("#cal-inicio").value || pa.fecha_inicio; lista.splice(+b.dataset.quitar, 1); pintar(); }));
+      $("#cal-agregar").addEventListener("click", () => {
+        const titulo = $("#cal-titulo").value.trim(), fecha = $("#cal-fecha").value;
+        if (!titulo || !fecha) return aviso("Poné el nombre y la fecha");
+        pa.fecha_inicio = $("#cal-inicio").value || pa.fecha_inicio;
+        lista.push({ titulo, fecha, emoji: $("#cal-emoji").value }); pintar();
+      });
+      $("#cal-guardar").addEventListener("click", async () => {
+        try {
+          E = await D.guardarFechas($("#cal-inicio").value || null, lista);
+          cerrarHoja(); aviso("Fechas guardadas 💕"); pintarFechaHoy(true);
+          if (vista === "recuerdos") pintarRecuerdos();
+        } catch (e) { aviso(msjError(e)); }
+      });
+    };
+    pintar();
+  }
+
+  // Si hoy es una fecha especial: tarjeta en la pantalla del panda (y lo dice una vez por día)
+  function pintarFechaHoy(decirlo = false) {
+    const t = $("#tarjeta-fecha"); if (!t) return;
+    const prox = R.proximasFechas(E.pareja || {}, 3);
+    const hoy = prox.filter((f) => f.faltan === 0), maniana = prox.find((f) => f.faltan === 1);
+    if (!hoy.length && !maniana) { t.hidden = true; return; }
+    t.hidden = false;
+    t.innerHTML = hoy.length
+      ? `<div class="fecha-hoy">${hoy.map((f) => `<div><span>${f.emoji}</span><b>${f.tipo === "aniversario" ? `¡Hoy ${esc(f.titulo.toLowerCase())}!` : `¡Hoy es ${esc(f.titulo)}!`}</b></div>`).join("")}</div>`
+      : `<div class="fila" style="margin:0"><div>⏰ <b>Mañana: ${esc(maniana.titulo)}</b> ${maniana.emoji}<div class="desc">¡Que no se les olvide!</div></div></div>`;
+    t.onclick = verCalendario;
+    if (hoy.length && (decirlo || leer("panda-fecha-dicha", "") !== E.hoy)) {
+      guardar("panda-fecha-dicha", E.hoy);
+      const f = hoy[0];
+      setTimeout(() => { panda?.reaccion("crecer"); decir(f.tipo === "aniversario" ? `¡Feliz aniversario! Hoy ${f.titulo.toLowerCase()}. ¡Los quiero mucho!` : `¡Hoy es ${f.titulo}! ¡Qué día especial!`); }, 1500);
+    }
   }
 
   // ---------- tienda: monedas, desafíos, minijuego, comida y accesorios ----------
@@ -1347,6 +1581,7 @@
   // ---------------------------------------------------------------
   window.__atras = () => {
     const visor = $(".visor"); if (visor) { visor.remove(); return true; }
+    const alarma = $(".alarma"); if (alarma) { alarma.cerrar(); return true; }
     const juego = $(".juego"); if (juego) { juego.cerrar?.(); return true; }
     if (!$("#hoja").hidden) { cerrarHoja(); return true; }
     if (modo === "banio") { salirBanio(); return true; }

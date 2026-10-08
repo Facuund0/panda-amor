@@ -53,6 +53,12 @@
                 android:value="Mascota virtual que camina sobre la pantalla y avisa a la pareja" />
         </service>
 
+        <!-- Ubicación en vivo (la activa cada uno para sí mismo) -->
+        <service
+            android:name=".VivoService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
         <!-- Notificaciones push de Firebase (llegan con la app cerrada) -->
         <service
             android:name=".MensajeriaPush"

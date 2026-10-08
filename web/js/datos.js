@@ -54,6 +54,10 @@
     favorito(id, valor) { return this.rpc("marcar_favorito", { evento_id: id, valor }); }
     salir() { return this.rpc("salir_de_pareja"); }
     usoGemini() { return this.rpc("mi_uso_gemini"); }
+    // ---------- v3: calendario y ubicación en vivo ----------
+    guardarFechas(inicio, fechas) { return this.rpc("guardar_fechas", { inicio: inicio || null, especiales: fechas || [] }); }
+    iniciarVivo() { return this.rpc("iniciar_vivo"); }
+    detenerVivo() { return this.rpc("detener_vivo", { clave: null }); }
     guardarTokenPush(token) { return this.rpc("guardar_token_push", { token_push: token }); }
     probarPush() { return this.rpc("probar_push"); }
     compartirUbicacion(lat, lng, prec) { return this.rpc("compartir_ubicacion", { la: lat, ln: lng, prec: Math.round(prec || 0) }); }
@@ -71,7 +75,8 @@
     }
 
     async ubicacionDe(userId) {
-      const { data, error } = await this.sb.from("ubicaciones").select("lat,lng,precision_m,actualizada").eq("user_id", userId).maybeSingle();
+      // "*": incluye en_vivo (ubicación en vivo) si la base está actualizada
+      const { data, error } = await this.sb.from("ubicaciones").select("*").eq("user_id", userId).maybeSingle();
       if (error) throw new Error(error.message);
       return data;
     }
@@ -145,7 +150,7 @@
       const db = this.db;
       if (!db) return { pareja: null };
       return {
-        pareja: { id: "demo", codigo: db.codigo },
+        pareja: { id: "demo", codigo: db.codigo, fecha_inicio: db.fecha_inicio || null, fechas: db.fechas || [] },
         yo: { id: YO, nombre: db.yo.nombre, lugar: 1, compartir_auto: db.yo.compartir_auto },
         otro: { id: OTRO, nombre: db.otro.nombre, lugar: 2 },
         mascota: { ...db.mascota },
@@ -191,11 +196,12 @@
       const yo = quien === YO ? db.yo : db.otro;
       const ahora = Date.now(), iso = () => new Date().toISOString();
       const permitidas = ["comida", "caricia", "frase", "mensaje", "necesito_amor", "pedir_ubicacion",
-        "banio", "dormir", "despertar", "comer", "juego", "sentir", "pregunta", "foto"];
+        "banio", "dormir", "despertar", "comer", "juego", "sentir", "pregunta", "foto", "alerta"];
       if (!permitidas.includes(tipo)) throw new Error("Acción desconocida: " + tipo);
       texto = texto == null ? null : String(texto).trim() || null;
       if (["frase", "mensaje", "sentir", "pregunta", "comer", "juego"].includes(tipo) && !texto) throw new Error("Falta el texto");
-      if (m.se_fue && !["mensaje", "frase", "sentir", "necesito_amor", "pedir_ubicacion", "foto", "pregunta"].includes(tipo)) throw new Error("Tu panda se fue 🎒 Adopten uno nuevo");
+      if (tipo === "alerta" && !["mujer", "hombre"].includes(texto)) throw new Error("Alerta inválida");
+      if (m.se_fue && !["mensaje", "frase", "sentir", "necesito_amor", "pedir_ubicacion", "foto", "pregunta", "alerta"].includes(tipo)) throw new Error("Tu panda se fue 🎒 Adopten uno nuevo");
       const en = R.energia(m);
       if (m.durmiendo && ["comida", "comer", "banio", "juego"].includes(tipo)) throw new Error("Shh… está durmiendo 😴 Despertalo primero");
       if (yo.dia !== d) { yo.caricias_hoy = 0; yo.mensajes_hoy = 0; yo.juegos_hoy = 0; yo.sentir_hoy = 0; yo.dia = d; }
@@ -394,6 +400,7 @@
     simular(tipo) {
       if (tipo === "necesito_amor" || tipo === "pedir_ubicacion") this.agregarEvento(OTRO, tipo, null);
       else if (tipo === "sentir") this.accion("sentir", "😢 Estoy triste · hoy fue un día difícil", OTRO);
+      else if (tipo === "alerta") this.accion("alerta", Math.random() < 0.5 ? "mujer" : "hombre", OTRO);
       else if (tipo === "foto") {
         // una "foto" dibujada, para probar
         const c = document.createElement("canvas"); c.width = 320; c.height = 240;
@@ -416,12 +423,23 @@
     async salir() { this.db = null; localStorage.removeItem(CLAVE_DEMO); }
     async usoGemini() { return this.db?.uso?.[this.hoy()] || 0; }
     async guardarTokenPush() { return null; } // en el demo no hay push
+    async guardarFechas(inicio, fechas) { this.db.fecha_inicio = inicio || null; this.db.fechas = fechas || []; this.guardar(); return this.estado(); }
+    async iniciarVivo() {
+      // demo: "tu pareja" también comparte en vivo y se mueve un poquito
+      this.db.ubicaciones[OTRO] = { ...(this.db.ubicaciones[OTRO] || { lat: -30.9447, lng: -61.5617, precision_m: 15 }), en_vivo: true, actualizada: new Date().toISOString() };
+      this.guardar(); return { clave: "demo" };
+    }
+    async detenerVivo() { return null; }
     async probarPush() { return false; }
     async compartirUbicacion(lat, lng, prec) {
       this.db.ubicaciones[YO] = { lat, lng, precision_m: prec, actualizada: new Date().toISOString() };
       this.agregarEvento(YO, "ubicacion", null, true); return { ok: true };
     }
-    async ubicacionDe(id) { return this.db.ubicaciones[id] || null; }
+    async ubicacionDe(id) {
+      const u = this.db.ubicaciones[id];
+      if (u?.en_vivo && id === OTRO) { u.lat += (Math.random() - 0.5) * 0.0008; u.lng += (Math.random() - 0.5) * 0.0008; u.actualizada = new Date().toISOString(); }
+      return u || null;
+    }
     async eventos({ limite = 60, tipos = null, favoritos = false } = {}) {
       return this.db.eventos.filter((e) => (!tipos || tipos.includes(e.tipo)) && (!favoritos || e.favorito)).slice(0, limite);
     }
@@ -436,8 +454,9 @@
       const m = this.db.mascota, yo = this.db.yo.nombre, otro = this.db.otro.nombre;
       if (accion === "frase_dia") {
         const f = `${yo} y ${otro}: cada mimito que me dan me hace crecer un poquito. ¡Hoy quiero muchos abrazos! 🐼💗`;
-        m.frase_dia = f; m.frase_fecha = d; this.guardar();
-        return { frase: f, usadas, limiteDiario: this.limiteGemini };
+        const pr = R && globalThis.Frases ? globalThis.Frases.preguntaDelDia(Math.floor(Date.now() / 86400e3)) : "¿Qué es lo que más te gusta de mí?";
+        m.frase_dia = f; m.pregunta_dia = pr; m.frase_fecha = d; this.guardar();
+        return { frase: f, pregunta: pr, usadas, limiteDiario: this.limiteGemini };
       }
       if (accion === "animo") { m.animo = "enamorado"; m.animo_nota = "Se dicen cosas muy lindas"; m.mensajes_sin_analizar = 0; this.guardar(); return { animo: "enamorado", nota: m.animo_nota, usadas, limiteDiario: this.limiteGemini }; }
       const t = String(datos.mensaje || "").toLowerCase();

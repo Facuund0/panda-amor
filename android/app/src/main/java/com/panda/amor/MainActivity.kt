@@ -211,6 +211,7 @@ class MainActivity : Activity() {
         }
         web.evaluateJavascript("window.dispatchEvent(new Event('android-volvio'))", null)
         Actualizador.alVolver(this)
+        VivoService.reanudar(this) // si compartía en vivo y Android lo cerró
     }
 
     override fun onPause() {

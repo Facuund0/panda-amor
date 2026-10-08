@@ -109,11 +109,18 @@ alter table public.mascotas add column if not exists juegos_total   int not null
 alter table public.miembros add column if not exists juegos_hoy int not null default 0;
 alter table public.miembros add column if not exists sentir_hoy int not null default 0;
 
-alter table public.eventos add column if not exists ref bigint;  -- para las fotos: id en public.fotos
+alter table public.eventos add column if not exists ref bigint;
+
+-- v3: calendario de la pareja, frase y pregunta del día sin repetir, ubicación en vivo
+alter table public.parejas   add column if not exists fecha_inicio date;                -- cuando empezaron
+alter table public.parejas   add column if not exists fechas jsonb not null default '[]'; -- [{titulo, fecha:'AAAA-MM-DD', emoji}]
+alter table public.mascotas  add column if not exists pregunta_dia text;
+alter table public.mascotas  add column if not exists frases_previas text[] not null default '{}';
+alter table public.mascotas  add column if not exists preguntas_previas text[] not null default '{}';  -- para las fotos: id en public.fotos
 alter table public.eventos drop constraint if exists eventos_tipo_check;
 alter table public.eventos add constraint eventos_tipo_check check (tipo in
   ('comida','caricia','frase','mensaje','necesito_amor','pedir_ubicacion','ubicacion','sistema',
-   'banio','dormir','despertar','comer','juego','sentir','pregunta','foto','compra','desafio'));
+   'banio','dormir','despertar','comer','juego','sentir','pregunta','foto','compra','desafio','alerta'));
 
 -- Fotos que se mandan (comprimidas en el celular, ~100 KB). Se borran a los 120 días salvo las guardadas con 💖.
 create table if not exists public.fotos (
@@ -186,7 +193,7 @@ declare p uuid := public.mi_pareja();
 begin
   if p is null then return json_build_object('pareja', null); end if;
   return json_build_object(
-    'pareja',   (select json_build_object('id', id, 'codigo', codigo) from public.parejas where id = p),
+    'pareja',   (select json_build_object('id', id, 'codigo', codigo, 'fecha_inicio', fecha_inicio, 'fechas', fechas) from public.parejas where id = p),
     'yo',       (select json_build_object('id', user_id, 'nombre', nombre, 'lugar', lugar, 'compartir_auto', compartir_auto)
                    from public.miembros where user_id = auth.uid()),
     'otro',     (select json_build_object('id', user_id, 'nombre', nombre, 'lugar', lugar)
@@ -281,12 +288,12 @@ language sql immutable as $$
   end)::jsonb
 $$;
 
--- Energía ahora (0..100): durmiendo sube 25 por hora, despierto baja 6 por hora
+-- Energía ahora (0..100): durmiendo sube 25 por hora, despierto baja 8 por hora (igual que Reglas.energia)
 create or replace function public.energia_actual(base int, desde timestamptz, dormido boolean) returns int
 language sql stable as $$
   select case when dormido
     then least(100, base + floor(extract(epoch from now() - desde) / 3600 * 25))::int
-    else greatest(0, base - floor(extract(epoch from now() - desde) / 3600 * 6))::int end
+    else greatest(0, base - floor(extract(epoch from now() - desde) / 3600 * 8))::int end
 $$;
 
 -- Comienzo del día de hoy (hora argentina)
@@ -320,16 +327,18 @@ begin
   select * into yo from public.miembros where user_id = auth.uid() for update;
   if not found then raise exception 'No estás en una pareja'; end if;
   if tipo_accion not in ('comida','caricia','frase','mensaje','necesito_amor','pedir_ubicacion',
-                         'banio','dormir','despertar','comer','juego','sentir','pregunta','foto') then
+                         'banio','dormir','despertar','comer','juego','sentir','pregunta','foto','alerta') then
     raise exception 'Acción desconocida: %', tipo_accion;
   end if;
   if tipo_accion in ('frase','mensaje','sentir','pregunta','comer','juego') and texto_ev is null then
     raise exception 'Falta el texto';
   end if;
   if tipo_accion = 'foto' and ref_foto is null then raise exception 'Las fotos se mandan con enviar_foto'; end if;
+  -- alerta en broma: "¿estás con otra mujer?" / "¿estás con otro hombre?" (no suma amor)
+  if tipo_accion = 'alerta' and coalesce(texto_ev, '') not in ('mujer', 'hombre') then raise exception 'Alerta inválida'; end if;
 
   select * into m from public.mascotas where pareja_id = yo.pareja_id for update;
-  if m.se_fue is not null and tipo_accion not in ('mensaje','frase','sentir','necesito_amor','pedir_ubicacion','foto','pregunta') then
+  if m.se_fue is not null and tipo_accion not in ('mensaje','frase','sentir','necesito_amor','pedir_ubicacion','foto','pregunta','alerta') then
     raise exception 'Tu panda se fue 🎒 Adopten uno nuevo';
   end if;
   en := public.energia_actual(m.energia_base, m.energia_desde, m.durmiendo);
@@ -481,6 +490,81 @@ begin
   return json_build_object('ok', true);
 end $$;
 
+-- Calendario: fecha en que empezaron y fechas especiales (cumpleaños, etc.)
+create or replace function public.guardar_fechas(inicio date, especiales jsonb) returns json
+language plpgsql security definer set search_path = public as $$
+declare p uuid := public.mi_pareja(); limpio jsonb;
+begin
+  if p is null then raise exception 'No estás en una pareja'; end if;
+  if inicio is not null and inicio > public.hoy() then raise exception 'La fecha no puede ser en el futuro'; end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'titulo', left(coalesce(e->>'titulo', 'Fecha especial'), 40),
+           'fecha', (e->>'fecha')::date,
+           'emoji', left(coalesce(e->>'emoji', '🎉'), 4))), '[]'::jsonb)
+    into limpio
+    from jsonb_array_elements(coalesce(especiales, '[]'::jsonb)) e
+   where e->>'fecha' ~ '^\d{4}-\d{2}-\d{2}$';
+  if jsonb_array_length(limpio) > 20 then raise exception 'Máximo 20 fechas'; end if;
+  update public.parejas set fecha_inicio = inicio, fechas = limpio where id = p;
+  return public.mi_estado();
+end $$;
+grant execute on function public.guardar_fechas(date, jsonb) to authenticated;
+
+-- ---------------------------------------------------------------------
+--  UBICACIÓN EN VIVO (tipo Snapchat). La activa cada uno para SÍ MISMO.
+--  El celular recibe una clave propia y manda su ubicación cada tanto,
+--  aunque la app esté cerrada. Se guarda SOLO la última ubicación (sin historial).
+-- ---------------------------------------------------------------------
+alter table public.ubicaciones add column if not exists en_vivo boolean not null default false;
+create table if not exists public.vivo_claves (
+  user_id    uuid primary key references auth.users (id) on delete cascade,
+  clave_hash text not null unique,
+  creada     timestamptz not null default now()
+);
+alter table public.vivo_claves enable row level security; -- nadie la lee desde la app
+
+create or replace function public.iniciar_vivo() returns json
+language plpgsql security definer set search_path = public as $$
+declare p uuid := public.mi_pareja(); clave text := replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
+begin
+  if p is null then raise exception 'No estás en una pareja'; end if;
+  insert into public.vivo_claves (user_id, clave_hash) values (auth.uid(), public.hash_clave(clave))
+  on conflict (user_id) do update set clave_hash = excluded.clave_hash, creada = now();
+  update public.ubicaciones set en_vivo = true where user_id = auth.uid();
+  insert into public.eventos (pareja_id, de, tipo, texto) values (p, auth.uid(), 'ubicacion', 'en_vivo');
+  return json_build_object('clave', clave);
+end $$;
+
+-- La llama el servicio de Android (sin sesión: se identifica con la clave)
+create or replace function public.vivo_ubicacion(clave text, la double precision, ln double precision, prec int default null) returns boolean
+language plpgsql security definer set search_path = public as $$
+declare u uuid; p uuid;
+begin
+  select user_id into u from public.vivo_claves where clave_hash = public.hash_clave(clave);
+  if u is null then return false; end if; -- dejó de compartir: el celular frena solo
+  select pareja_id into p from public.miembros where user_id = u;
+  if p is null then return false; end if;
+  if la not between -90 and 90 or ln not between -180 and 180 then raise exception 'Ubicación inválida'; end if;
+  insert into public.ubicaciones (user_id, pareja_id, lat, lng, precision_m, actualizada, en_vivo)
+    values (u, p, la, ln, prec, now(), true)
+  on conflict (user_id) do update set lat = excluded.lat, lng = excluded.lng, precision_m = excluded.precision_m,
+    actualizada = now(), pareja_id = excluded.pareja_id, en_vivo = true;
+  return true;
+end $$;
+
+create or replace function public.detener_vivo(clave text default null) returns void
+language plpgsql security definer set search_path = public as $$
+declare u uuid := auth.uid();
+begin
+  if u is null and clave is not null then select user_id into u from public.vivo_claves where clave_hash = public.hash_clave(clave); end if;
+  if u is null then return; end if;
+  delete from public.vivo_claves where user_id = u;
+  update public.ubicaciones set en_vivo = false where user_id = u;
+end $$;
+grant execute on function public.iniciar_vivo() to authenticated;
+grant execute on function public.vivo_ubicacion(text, double precision, double precision, int) to anon, authenticated;
+grant execute on function public.detener_vivo(text) to anon, authenticated;
+
 create or replace function public.ajustes(mi_nombre text default null, nombre_panda text default null,
                                           auto_ubicacion boolean default null) returns json
 language plpgsql security definer set search_path = public as $$
@@ -508,6 +592,7 @@ declare p uuid := public.mi_pareja();
 begin
   delete from public.miembros where user_id = auth.uid();
   delete from public.ubicaciones where user_id = auth.uid();
+  delete from public.vivo_claves where user_id = auth.uid();
   if p is not null and not exists (select 1 from public.miembros where pareja_id = p) then
     delete from public.parejas where id = p; -- borra panda y eventos en cascada
   end if;
@@ -547,6 +632,26 @@ language sql security definer set search_path = public as $$
          animo_nota = left(nota, 200), mensajes_sin_analizar = 0, actualizada = now()
    where pareja_id = public.mi_pareja();
 $$;
+
+-- Frase y pregunta del día (las genera Gemini una vez por día y las ven los dos).
+-- La primera que llega gana: si ya hay de hoy, devuelve esas. Se guardan las últimas 40 para no repetir.
+create or replace function public.guardar_dia(frase text, pregunta text) returns json
+language plpgsql security definer set search_path = public as $$
+declare p uuid := public.mi_pareja(); m public.mascotas;
+begin
+  if p is null then raise exception 'No estás en una pareja'; end if;
+  select * into m from public.mascotas where pareja_id = p for update;
+  if m.frase_fecha is distinct from public.hoy() then
+    update public.mascotas set
+      frase_dia = left(frase, 300), pregunta_dia = nullif(left(pregunta, 200), ''), frase_fecha = public.hoy(),
+      frases_previas = (array_prepend(left(frase, 300), frases_previas))[1:40],
+      preguntas_previas = case when coalesce(pregunta, '') = '' then preguntas_previas
+                               else (array_prepend(left(pregunta, 200), preguntas_previas))[1:40] end
+    where pareja_id = p returning * into m;
+  end if;
+  return json_build_object('frase', m.frase_dia, 'pregunta', m.pregunta_dia);
+end $$;
+grant execute on function public.guardar_dia(text, text) to authenticated;
 
 create or replace function public.guardar_frase_dia(frase text) returns void
 language sql security definer set search_path = public as $$
@@ -807,6 +912,9 @@ grant select (user_id, pareja_id, lugar, nombre, compartir_auto, ultimo_dia, uni
 -- Quién puede llamar a cada función
 revoke execute on all functions in schema public from public, anon;
 grant execute on function public.ping()                                   to anon, authenticated;
+-- ubicación en vivo: el servicio de Android se identifica con su clave (sin sesión)
+grant execute on function public.vivo_ubicacion(text, double precision, double precision, int) to anon, authenticated;
+grant execute on function public.detener_vivo(text)                      to anon, authenticated;
 grant execute on function public.mantenimiento()                          to anon, authenticated;
 grant execute on function public.hoy()                                    to authenticated;
 grant execute on function public.mi_pareja()                              to authenticated;
@@ -888,7 +996,7 @@ declare
   quien text; panda text; titulo text; cuerpo text; tipo_aviso text := new.tipo; tokens jsonb;
   txt text := coalesce(new.texto, '');
 begin
-  if new.tipo not in ('necesito_amor','pedir_ubicacion','mensaje','frase','ubicacion','sentir','foto','pregunta','sistema') then return new; end if;
+  if new.tipo not in ('necesito_amor','pedir_ubicacion','mensaje','frase','ubicacion','sentir','foto','pregunta','sistema','alerta') then return new; end if;
   if new.tipo = 'sistema' and txt not like 'aviso_abandono|%' and txt not like 'se_fue|%' then return new; end if;
 
   -- a quién: la otra persona (en los avisos del sistema, a los dos)
@@ -906,7 +1014,11 @@ begin
   elsif new.tipo = 'pedir_ubicacion' then titulo := '📍 ' || quien || ' quiere saber dónde estás'; cuerpo := 'Tocá para compartir tu ubicación';
   elsif new.tipo = 'mensaje' then titulo := '💬 ' || quien; cuerpo := txt;
   elsif new.tipo = 'frase' then titulo := '💌 Frase de ' || quien; cuerpo := txt;
+  elsif new.tipo = 'ubicacion' and txt = 'en_vivo' then titulo := '📡 ' || quien || ' comparte su ubicación en vivo'; cuerpo := 'Tocá para ver dónde está ahora';
   elsif new.tipo = 'ubicacion' then titulo := '📍 ' || quien || ' compartió dónde está'; cuerpo := 'Tocá para verlo en el mapa';
+  elsif new.tipo = 'alerta' then
+    titulo := '🚨 ¡ALERTA! 🚨';
+    cuerpo := quien || ' quiere saber: ¿estás con ' || case when txt = 'hombre' then 'otro hombre' else 'otra mujer' end || '? 🤨';
   elsif new.tipo = 'sentir' then titulo := '💭 ' || quien || ': ' || split_part(txt, ' · ', 1); cuerpo := coalesce(nullif(substr(txt, char_length(split_part(txt, ' · ', 1)) + 4), ''), 'Tocá para responderle');
   elsif new.tipo = 'foto' then titulo := '📸 ' || quien || ' te mandó una foto'; cuerpo := case when txt in ('', '📸') then 'Tocá para verla' else txt end;
   elsif new.tipo = 'pregunta' then titulo := '❓ ' || quien || ' respondió la pregunta del día'; cuerpo := 'Respondé para ver qué puso';
@@ -944,6 +1056,69 @@ end $$;
 grant execute on function public.probar_push() to authenticated;
 
 -- ---------------------------------------------------------------------
+--  CALENDARIO: avisa (push a los dos) cuando cumplen meses o años y en las
+--  fechas especiales, y el día anterior para que no se olviden.
+-- ---------------------------------------------------------------------
+create or replace function public.cumple_en(inicio date, dia date) returns int  -- meses que cumplen ese día (0 si no cumplen)
+language sql immutable as $$
+  select case
+    when inicio is null or dia <= inicio then 0
+    -- mismo día del mes (o el último día si el mes es más corto: ej. empezaron un 31)
+    when extract(day from dia) = extract(day from inicio)
+      or (extract(day from inicio) > extract(day from dia) and dia = (date_trunc('month', dia) + interval '1 month - 1 day')::date)
+    then ((extract(year from dia) - extract(year from inicio)) * 12 + extract(month from dia) - extract(month from inicio))::int
+    else 0 end
+$$;
+
+create or replace function public.avisos_fechas() returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  pa record; f jsonb; tokens jsonb; d date := public.hoy(); man date := public.hoy() + 1;
+  meses int; titulo text; cuerpo text; fd date;
+begin
+  for pa in select pr.id, pr.fecha_inicio, pr.fechas, ma.avisos_push, ma.nombre from public.parejas pr join public.mascotas ma on ma.pareja_id = pr.id loop
+    if pa.avisos_push ? ('fechas_' || d) then continue; end if;
+    select jsonb_agg(t.token) into tokens from public.push_tokens t join public.miembros mi on mi.user_id = t.user_id where mi.pareja_id = pa.id;
+    if tokens is null then continue; end if;
+    titulo := null;
+    meses := public.cumple_en(pa.fecha_inicio, d);
+    if meses > 0 then
+      if meses % 12 = 0 then titulo := '🎉 ¡Hoy cumplen ' || (meses / 12) || case when meses = 12 then ' año' else ' años' end || ' juntos!';
+      else titulo := '💕 ¡Hoy cumplen ' || meses || case when meses = 1 then ' mes' else ' meses' end || '!'; end if;
+      cuerpo := pa.nombre || ' les prepara un abrazo gigante. ¡Feliz aniversario! 🐼';
+    elsif public.cumple_en(pa.fecha_inicio, man) > 0 then
+      meses := public.cumple_en(pa.fecha_inicio, man);
+      titulo := '⏰ Mañana cumplen ' || case when meses % 12 = 0 then (meses / 12) || case when meses = 12 then ' año' else ' años' end else meses || case when meses = 1 then ' mes' else ' meses' end end;
+      cuerpo := '¡Que no se les olvide! 💕';
+    end if;
+    if titulo is null then
+      for f in select * from jsonb_array_elements(pa.fechas) loop
+        fd := (f->>'fecha')::date;
+        if extract(month from fd) = extract(month from d) and extract(day from fd) = extract(day from d) then
+          titulo := coalesce(f->>'emoji', '🎉') || ' ¡Hoy es ' || (f->>'titulo') || '!'; cuerpo := 'Un día especial para ustedes 💕'; exit;
+        elsif extract(month from fd) = extract(month from man) and extract(day from fd) = extract(day from man) then
+          titulo := '⏰ Mañana: ' || (f->>'titulo') || ' ' || coalesce(f->>'emoji', ''); cuerpo := '¡Que no se les olvide! 💕'; exit;
+        end if;
+      end loop;
+    end if;
+    if titulo is null then continue; end if;
+    -- se marca hoy (y se borran las marcas de días viejos para que no crezca)
+    update public.mascotas set avisos_push =
+      (select coalesce(jsonb_object_agg(k, v), '{}'::jsonb) from jsonb_each(avisos_push) as x(k, v) where k not like 'fechas_%')
+      || jsonb_build_object('fechas_' || d, now())
+     where pareja_id = pa.id;
+    begin
+      perform net.http_post(url := public.url_push(),
+        body := jsonb_build_object('tokens', tokens, 'titulo', titulo, 'texto', cuerpo, 'tipo', 'fecha'),
+        headers := '{"Content-Type": "application/json"}'::jsonb, timeout_milliseconds := 8000);
+    exception when others then null;
+    end;
+  end loop;
+end $$;
+revoke execute on function public.avisos_fechas() from public, anon, authenticated;
+grant execute on function public.cumple_en(date, date) to authenticated;
+
+-- ---------------------------------------------------------------------
 --  EL PANDA AVISA CUANDO NECESITA ALGO (push a los dos, cada hora)
 --  Hambre, sueño/energía, mimos, baño. Cada necesidad se avisa como mucho
 --  cada 8 horas y nunca de noche (23 a 9 h, hora de Argentina).
@@ -962,21 +1137,22 @@ begin
     begin perform public.revisar_abandono(m.pareja_id); exception when others then null; end;
   end loop;
   if hora >= 23 or hora < 9 then return 0; end if;
+  if hora = 10 then perform public.avisos_fechas(); end if; -- aniversarios y fechas especiales (una vez por día)
 
   for m in select * from public.mascotas where se_fue is null loop
     necesidad := null;
-    if now() - m.ultima_comida > interval '15 hours' then
+    if now() - m.ultima_comida > interval '9 hours' then
       necesidad := 'hambre'; titulo := '🎋 ' || m.nombre || ' tiene hambre'; cuerpo := '¿Alguno me da bambú? Tengo la panza vacía 🥺';
     elsif not m.durmiendo and public.energia_actual(m.energia_base, m.energia_desde, false) < 20 then
       necesidad := 'energia'; titulo := '😴 ' || m.nombre || ' está muy cansado'; cuerpo := 'Me quedé sin energía… ¿me acuestan a dormir un ratito?';
-    elsif now() - m.ultima_caricia > interval '24 hours' then
-      necesidad := 'carino'; titulo := '💗 ' || m.nombre || ' extraña sus mimos'; cuerpo := 'Hace un día que nadie me hace mimitos 🥹';
-    elsif now() - m.ultimo_banio > interval '36 hours' then
+    elsif now() - m.ultima_caricia > interval '13 hours' then
+      necesidad := 'carino'; titulo := '💗 ' || m.nombre || ' extraña sus mimos'; cuerpo := 'Hace un montón que nadie me hace mimitos 🥹';
+    elsif now() - m.ultimo_banio > interval '18 hours' then
       necesidad := 'limpieza'; titulo := '🛁 ' || m.nombre || ' está sucio'; cuerpo := '¡Necesito un baño con mucha espuma!';
     end if;
     if necesidad is null then continue; end if;
     ult := (m.avisos_push ->> necesidad)::timestamptz;
-    if ult is not null and now() - ult < interval '8 hours' then continue; end if;
+    if ult is not null and now() - ult < interval '6 hours' then continue; end if;
 
     select jsonb_agg(t.token) into tokens
       from public.push_tokens t join public.miembros mi on mi.user_id = t.user_id

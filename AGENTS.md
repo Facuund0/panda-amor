@@ -24,7 +24,8 @@ Proyecto: **Nuestro Panda**, un panda virtual de pareja. Respondé y comentá el
 6. Mantener la web **mobile-first** (máx. 480 px), con letra clara y botones grandes.
 7. Cambios de base de datos: agregarlos a `schema.sql` de forma idempotente (`create or replace`, `if not exists`) y avisar que hay que volver a ejecutarlo en Supabase.
 8. **Notificaciones push (Firebase)**: el trigger `avisar_push` (schema.sql) llama a `/api/push` (Vercel) con pg_net; Vercel firma con `FIREBASE_SERVICE_ACCOUNT` (variable de entorno, nunca en el repo) y manda un mensaje de datos que recibe `MensajeriaPush` (Push.kt). Si agregás un tipo de evento que deba avisar, sumalo en `avisar_push`. El panda flotante no repite avisos si `P.pushActivo()`.
-9. **Fotos**: se comprimen en el celular (`comprimir` en app.js, < 400 KB) y se guardan en la tabla `fotos`; se mandan con `enviar_foto`. No guardar fotos sin comprimir.
+9. **v3**: frase + pregunta del día salen de UNA consulta a Gemini (`frase_dia` → `guardar_dia`, guarda las últimas 40 para no repetir). Ubicación en vivo: `iniciar_vivo` da una clave, `VivoService` (Android) la usa con `vivo_ubicacion` (anon) — solo la última ubicación. Calendario: `parejas.fecha_inicio` + `fechas`, `cumple_en` (SQL) ↔ `Reglas.cumpleEn`, avisos en `avisos_fechas`. Alerta en broma: evento `alerta` (texto `mujer`/`hombre`), canal `alerta_broma` en Avisos.kt.
+10. **Fotos**: se comprimen en el celular (`comprimir` en app.js, < 400 KB) y se guardan en la tabla `fotos`; se mandan con `enviar_foto`. No guardar fotos sin comprimir.
 
 ## Cómo probar
 - Web sin backend: abrir `web/index.html` con Live Server → modo demo (o agregar `?demo` a la URL). En Ajustes → Modo demo hay botones para simular a la pareja (triste, foto), días sin cuidarlo y monedas extra.

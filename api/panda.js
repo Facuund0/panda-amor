@@ -4,7 +4,8 @@
 //  accion = "chat"      → charlar con el panda           (1 consulta)
 //  accion = "animo"     → leer los últimos mensajes y
 //                          decidir cómo se siente         (1 consulta cada 8 mensajes)
-//  accion = "frase_dia" → frase tierna del día            (1 consulta por día)
+//  accion = "frase_dia" → frase tierna + pregunta del día (1 consulta por día,
+//                          para los dos; no repite las últimas 40)
 //
 //  Cada persona usa SU key de Gemini (GEMINI_KEY_1 / GEMINI_KEY_2)
 //  y tiene un límite diario (LIMITE_GEMINI_DIARIO, por defecto 60).
@@ -19,8 +20,8 @@ const etapaDe = (amor) => LIMITES_ETAPA.reduce((i, d, n) => (amor >= d ? n : i),
 function estadoPou(m) {
   if (m.energia_base == null) return "";
   const h = (f) => (Date.now() - new Date(f).getTime()) / 3600000;
-  const energia = m.durmiendo ? Math.min(100, m.energia_base + Math.floor(h(m.energia_desde) * 25)) : Math.max(0, m.energia_base - Math.floor(h(m.energia_desde) * 6));
-  const limpieza = Math.max(0, Math.min(1, 1 - (h(m.ultimo_banio) - 6) / 42));
+  const energia = m.durmiendo ? Math.min(100, m.energia_base + Math.floor(h(m.energia_desde) * 25)) : Math.max(0, m.energia_base - Math.floor(h(m.energia_desde) * 8));
+  const limpieza = Math.max(0, Math.min(1, 1 - (h(m.ultimo_banio) - 3) / 21));
   const dias = h(m.ultimo_cuidado) / 24;
   return `
 - ${m.durmiendo ? "Estás durmiendo (te despertaron para hablar, hablás con sueñito)" : `Energía: ${energia}/100${energia < 20 ? " (¡estás muy cansado, querés dormir!)" : ""}`}
@@ -52,7 +53,7 @@ Nunca inventes cosas que hizo ${otro}: solo sabés lo que figura abajo.
 
 Cómo estás ahora:
 - Etapa: ${ETAPAS[e]} · amor acumulado: ${m.amor} · racha: ${m.racha} días seguidos (mejor: ${m.mejor_racha})
-- Última comida: hace ${horas < 1 ? "menos de una hora" : Math.round(horas) + " horas"}${horas > 8 ? " (¡tenés hambre!)" : ""}
+- Última comida: hace ${horas < 1 ? "menos de una hora" : Math.round(horas) + " horas"}${horas > 6 ? " (¡tenés hambre!)" : ""}
 - Ánimo según sus mensajes: ${m.animo}${m.animo_nota ? " (" + m.animo_nota + ")" : ""}${estadoPou(m)}
 - Hora en Argentina: ${new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Argentina/Buenos_Aires" })}`;
 }
@@ -72,7 +73,7 @@ export default async function handler(req, res) {
   let est;
   try { est = await rpc(token, "mi_estado"); } catch (e) { return res.status(401).json({ error: "Sesión inválida" }); }
   if (!est?.pareja) return res.status(403).json({ error: "No estás en una pareja" });
-  if (accion === "frase_dia" && est.mascota.frase_fecha === est.hoy) return res.status(200).json({ frase: est.mascota.frase_dia });
+  if (accion === "frase_dia" && est.mascota.frase_fecha === est.hoy) return res.status(200).json({ frase: est.mascota.frase_dia, pregunta: est.mascota.pregunta_dia || null });
 
   // 2) ¿Le quedan consultas hoy?
   const uso = await rpc(token, "usar_gemini", { limite: LIMITE_DIARIO });
@@ -129,16 +130,33 @@ export default async function handler(req, res) {
     }
 
     if (accion === "frase_dia") {
+      const m = est.mascota;
+      const previas = (m.frases_previas || []).slice(0, 25).map((f) => "- " + f).join("\n");
+      const pregPrevias = (m.preguntas_previas || []).slice(0, 40).map((f) => "- " + f).join("\n");
       const r = await gemini(key, {
         sistema: personalidad(est),
-        contents: [{ role: "user", parts: [{ text: `Escribí la "frase del día" para ${yo} y ${otro}: algo tierno y original sobre su amor o para alegrarles el día, dicho por vos. Máximo 25 palabras. Podés usar UN emoji al final.` }] }],
-        esquema: { type: "OBJECT", properties: { frase: { type: "STRING" } }, required: ["frase"] },
+        contents: [{ role: "user", parts: [{ text: `Hoy necesito dos cosas para ${yo} y ${otro}:
+1) "frase": la frase del día, algo tierno y original sobre su amor o para alegrarles el día, dicho por vos. Máximo 25 palabras. Podés usar UN emoji al final.
+2) "pregunta": la pregunta del día para que respondan los dos y se conozcan más (divertida, romántica o curiosa; ni íntima ni incómoda). Máximo 15 palabras, con signos de pregunta.
+Tienen que ser DISTINTAS a estas que ya usaron:
+Frases anteriores:
+${previas || "(ninguna)"}
+Preguntas anteriores:
+${pregPrevias || "(ninguna)"}` }] }],
+        esquema: { type: "OBJECT", properties: { frase: { type: "STRING" }, pregunta: { type: "STRING" } }, required: ["frase", "pregunta"] },
         temperatura: 1,
       });
       if (!r.ok) return res.status(502).json({ error: "Gemini no respondió", ...base });
       const frase = String(r.datos.frase || "").trim().slice(0, 300);
-      await rpc(token, "guardar_frase_dia", { frase });
-      return res.status(200).json({ frase, ...base });
+      const pregunta = String(r.datos.pregunta || "").trim().slice(0, 200);
+      try {
+        // la primera de la pareja que llega gana (así los dos ven la misma)
+        const g = await rpc(token, "guardar_dia", { frase, pregunta });
+        return res.status(200).json({ frase: g.frase, pregunta: g.pregunta, ...base });
+      } catch {
+        await rpc(token, "guardar_frase_dia", { frase }); // base sin actualizar
+        return res.status(200).json({ frase, ...base });
+      }
     }
   } catch (e) {
     console.error(e);
