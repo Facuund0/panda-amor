@@ -20,6 +20,9 @@ export default async function handler(req, res) {
     texto: String(b.texto || "").slice(0, 300),
     tipo: String(b.tipo || "general").slice(0, 30),
   };
+  // "demora" (solo para la prueba): espera hasta 15 s antes de mandar, para que cierres la app
+  const demora = Math.min(15, Math.max(0, Number(b.demora) || 0));
+  if (demora) await new Promise((r) => setTimeout(r, demora * 1000));
   const resultados = await Promise.all(tokens.map((t) => enviarPush(sa, t, datos).catch((e) => ({ ok: false, detalle: String(e.message || e) }))));
   res.status(200).json({ enviados: resultados.filter((r) => r.ok).length, de: tokens.length });
 }

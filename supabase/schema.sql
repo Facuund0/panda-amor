@@ -926,6 +926,23 @@ exception when others then
   return new; -- un aviso que falla nunca impide guardar el evento
 end $$;
 
+-- Botón "Probar notificación" (Ajustes): se manda una push a uno mismo, con 10 s de espera
+-- para que alcances a cerrar la app. Devuelve false si este celular todavía no registró su token.
+create or replace function public.probar_push() returns boolean
+language plpgsql security definer set search_path = public as $$
+declare tk text;
+begin
+  select token into tk from public.push_tokens where user_id = auth.uid();
+  if tk is null then return false; end if;
+  perform net.http_post(
+    url := public.url_push(),
+    body := jsonb_build_object('tokens', jsonb_build_array(tk), 'titulo', '🐼 ¡Funciona!',
+      'texto', 'Así te van a llegar los avisos aunque la app esté cerrada.', 'tipo', 'mensaje', 'demora', 10),
+    headers := '{"Content-Type": "application/json"}'::jsonb, timeout_milliseconds := 20000);
+  return true;
+end $$;
+grant execute on function public.probar_push() to authenticated;
+
 drop trigger if exists eventos_push on public.eventos;
 create trigger eventos_push after insert on public.eventos
   for each row execute function public.avisar_push();

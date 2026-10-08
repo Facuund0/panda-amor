@@ -731,6 +731,7 @@
           ${perm.ubicacion ? "" : `<button class="btn btn-sec btn-chico" data-permiso="ubicacion">Ubicación</button>`}
           ${perm.bateria ? "" : `<button class="btn btn-sec btn-chico" data-permiso="bateria">Batería</button>`}
         </div>
+        <button class="btn btn-sec btn-ancho btn-chico" id="a-probar-push" style="margin-top:8px">🔔 Probar notificación</button>
         <button class="btn btn-sec btn-ancho btn-chico" id="a-actualizar" style="margin-top:8px">🔄 Buscar actualización${P.versionApp() ? ` (tenés la 1.${P.versionApp()})` : ""}</button>
         </div>` : ""}
 
@@ -807,6 +808,13 @@
     if (android) {
       $("#a-tts")?.addEventListener("click", () => Voz.ajustesCelular());
       $("#a-actualizar")?.addEventListener("click", () => P.buscarActualizacion());
+      $("#a-probar-push")?.addEventListener("click", async () => {
+        try {
+          await activarPush();
+          const ok = await D.probarPush();
+          aviso(ok ? "Listo: cerrá la app, en 10 segundos te llega 🔔" : "Este celu todavía no se registró: permití las notificaciones y abrí la app de nuevo");
+        } catch (e) { aviso(msjError(e)); }
+      });
     }
   }
 
