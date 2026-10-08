@@ -234,6 +234,8 @@
     let texto = F.deOtro(ev.tipo, n);
     const sent = ev.tipo === "sentir" ? F.SENTIMIENTOS.find((x) => String(ev.texto).startsWith(x.emoji)) : null;
     if (sent) texto = (F.RESPUESTA_SENTIR[sent.id] || texto).replace(/\{otro\}/g, n.otro);
+    const tonoOtro = ["frase", "mensaje"].includes(ev.tipo) ? F.tonoDe(ev.texto) : null;
+    if (tonoOtro) texto = `${texto} ${F.respuestaTono("recibido", tonoOtro, n) || ""}`.trim();
     if (ev.tipo === "llegue") texto = `¡${n.otro} llegó ${ev.texto || "bien"}! Qué alivio.`;
     if (ev.tipo === "alerta") texto = F.deOtro(ev.texto === "hombre" ? "alerta_hombre" : "alerta_mujer", n);
     if (ev.tipo === "ubicacion" && ev.texto === "en_vivo") texto = F.deOtro("ubicacion_vivo", n);
@@ -258,7 +260,8 @@
     // reacción del panda
     const reac = { caricia: "caricia", comida: "comida", comer: "comida", frase: "amor", necesito_amor: "necesita", mensaje: "sorpresa",
       banio: "amor", juego: "amor", foto: "sorpresa", alerta: "necesita", llegue: "amor", despertar: "saludo", sentir: sent && F.TRISTES.includes(sent.id) ? "triste" : "amor" }[ev.tipo];
-    if (reac) panda.reaccion(reac);
+    if (tonoOtro && ["triste", "enojado", "preocupado"].includes(tonoOtro)) panda.reaccion("triste");
+    else if (reac) panda.reaccion(reac);
     if (ev.tipo === "pedir_ubicacion" && E.yo.compartir_auto) {
       try {
         const u = await P.obtenerUbicacion();

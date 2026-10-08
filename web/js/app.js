@@ -384,7 +384,7 @@
     if (dormido && ["comida", "comer"].includes(tipo)) return decir("Shh… está durmiendo. Despertalo primero ☀️");
     if (tipo === "comida" || tipo === "comer") panda.reaccion("comida");
     if (tipo === "caricia") panda.reaccion("caricia");
-    if (tipo === "frase") panda.reaccion("amor");
+    if (tipo === "frase" && !["triste", "enojado", "preocupado"].includes(F.tonoDe(texto))) panda.reaccion("amor");
     let r;
     try {
       r = await D.accion(tipo, texto);
@@ -404,7 +404,12 @@
     else if (r.nota === "tope_caricias") dicho = F.frase("tope_caricias", n);
     else if (tipo === "comida") dicho = F.frase("comida", n);
     else if (tipo === "caricia") dicho = Math.random() < 0.6 ? F.frase("caricia", n) : null;
-    else if (tipo === "frase") dicho = F.frase("frase", n);
+    else if (tipo === "frase" || tipo === "mensaje") {
+      // si es algo triste/enojado/etc., el panda no festeja: responde acorde
+      const tono = F.tonoDe(texto);
+      if (tono) { dicho = F.respuestaTono("enviado", tono, n); if (["triste", "enojado", "preocupado"].includes(tono)) panda.reaccion("triste"); }
+      else if (tipo === "frase") dicho = F.frase("frase", n);
+    }
     else if (tipo === "necesito_amor") { dicho = F.frase("necesito_amor_enviado", n); panda.reaccion("necesita"); }
     else if (tipo === "pedir_ubicacion") dicho = F.frase("pedir_ubicacion", n);
     else if (tipo === "llegue") { dicho = `¡Listo! Le avisé a ${n.otro} que llegaste 💗`; panda.reaccion("amor"); }
@@ -413,7 +418,8 @@
     const ganadas = r.monedas_ganadas || 0;
     if (r.sumo + r.extra > 0 || ganadas) aviso([r.sumo + r.extra > 0 ? `+${r.sumo + r.extra} 💗${r.extra ? ` (racha +${r.extra})` : ""}` : "", ganadas ? `+${ganadas} 🪙` : ""].filter(Boolean).join(" · "));
     if (dicho) decir(dicho);
-    if (r.analizar) analizarAnimo();
+    // si algo triste o enojado, el ánimo del panda se recalcula ya (1 consulta), no a los 8 mensajes
+    if (r.analizar || (["frase", "mensaje"].includes(tipo) && ["triste", "enojado"].includes(F.tonoDe(texto)))) analizarAnimo();
     revisarDesafiosPendientes();
     return r;
   }
@@ -638,7 +644,12 @@
     if (ev.tipo === "comer") panda.reaccion("comida");
     if (ev.tipo === "caricia") panda.reaccion("caricia");
     if (ev.tipo === "comida") panda.reaccion("comida");
-    if (ev.tipo === "frase") panda.reaccion("amor");
+    const tonoOtro = ["frase", "mensaje"].includes(ev.tipo) ? F.tonoDe(ev.texto) : null;
+    if (ev.tipo === "frase" && !tonoOtro) panda.reaccion("amor");
+    if (tonoOtro) {
+      if (["triste", "enojado", "preocupado"].includes(tonoOtro)) panda.reaccion("triste"); else panda.reaccion("amor");
+      texto = `${texto} ${F.respuestaTono("recibido", tonoOtro, n) || ""}`.trim();
+    }
     if (ev.tipo === "necesito_amor") alertaNecesitaAmor();
     if (ev.tipo === "pedir_ubicacion") {
       if (E.yo.compartir_auto) compartirMiUbicacion(); else preguntaUbicacion();

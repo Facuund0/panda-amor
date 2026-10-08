@@ -137,5 +137,43 @@
     return frase(h < 12 && h >= 6 ? "saludo_manana" : h >= 21 || h < 6 ? "saludo_noche" : "saludo_tarde", datos);
   }
 
-  globalThis.Frases = { frase, deOtro, saludo, SENTIMIENTOS, TRISTES, RESPUESTA_SENTIR, IDEAS_FRASES, PREGUNTAS, preguntaDelDia };
+  // ---------- Tono de un mensaje o frase (sin IA: por palabras) ----------
+  // Para que el panda no diga "¡qué lindo!" cuando alguien escribe "estoy triste".
+  const TONOS = [
+    ["triste", /\b(triste|tristeza|llor(o|ando|é|e)|mal\b|bajon|bajón|deprimid|angustiad|me duele|dolid|sol[oa] |vac[ií]o|no doy m[aá]s|horrible)/i],
+    ["enojado", /\b(enojad|enfadad|bronca|me molest|me jod|odio|harta?|cansad[oa] de|ya fue)/i],
+    ["perdon", /\b(perd[oó]n|disculp|lo siento|me equivoqu)/i],
+    ["extrano", /\b(te extra[nñ]o|extra[nñ]ándote|extra[nñ]arte|quiero verte|ven[ií] ya)/i],
+    ["preocupado", /\b(preocupad|nervios|ansios|miedo|asustad)/i],
+  ];
+  function tonoDe(texto) {
+    const t = String(texto || "");
+    for (const [tono, re] of TONOS) if (re.test(t)) return tono;
+    return null;
+  }
+  const RESPUESTA_TONO = {
+    // al mandarlo (lo que dice tu panda)
+    enviado: {
+      triste: ["Se lo llevo con cuidadito a {otro}. Y te doy un abrazo de oso 🫂", "Ay… te mando muchos mimos. Ya se lo digo a {otro}."],
+      enojado: ["Uh… se lo llevo a {otro}. Respirá hondo conmigo, ¿sí?", "Ya le aviso a {otro}. Ojalá lo hablen tranquilos 💗"],
+      perdon: ["Se lo llevo a {otro}. Pedir perdón es de valientes 💗"],
+      extrano: ["¡Yo también extraño cuando no están juntos! Ya se lo digo a {otro}."],
+      preocupado: ["Se lo llevo a {otro}. Todo va a estar bien, estoy acá 🐼"],
+    },
+    // al recibirlo (lo que dice el panda del otro)
+    recibido: {
+      triste: ["{otro} está triste… ¿le mandás un abrazo o lo llamás?", "Me parece que {otro} necesita mimos. ¿Le escribís algo lindo?"],
+      enojado: ["{otro} está con bronca… ¿lo hablan con calma?"],
+      perdon: ["{otro} te pide perdón. ¿Lo perdonás? 🥺"],
+      extrano: ["¡{otro} te extraña muchísimo!"],
+      preocupado: ["{otro} está preocupado/a. Dale un poquito de calma 💗"],
+    },
+  };
+  const respuestaTono = (lado, tono, datos) => {
+    const lista = RESPUESTA_TONO[lado]?.[tono];
+    if (!lista) return null;
+    return lista[Math.floor(Math.random() * lista.length)].replace(/\{(\w+)\}/g, (_, k) => datos[k] ?? "");
+  };
+
+  globalThis.Frases = { tonoDe, respuestaTono, frase, deOtro, saludo, SENTIMIENTOS, TRISTES, RESPUESTA_SENTIR, IDEAS_FRASES, PREGUNTAS, preguntaDelDia };
 })();
