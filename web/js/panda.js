@@ -91,9 +91,10 @@
       ${f.panuelo ? `<path d="M${100 - crx * 0.85} ${cy - cry * 0.62} Q100 ${cy - cry * 0.1} ${100 + crx * 0.85} ${cy - cry * 0.62} L${100 + crx * 0.85} ${cy - cry * 0.42} Q100 ${cy + cry * 0.12} ${100 - crx * 0.85} ${cy - cry * 0.42} Z" fill="#e5484d"/>
         <path d="M${100 + 6} ${cy - cry * 0.15} l14 22 -18 -4 z" fill="#c9363b"/>` : ""}
       ${f.medalla ? `<g transform="translate(100 ${cy + cry * (f.panuelo ? 0.42 : 0.12)})"><circle r="9" fill="#ffd166" stroke="#e8a92a" stroke-width="2"/><path d="M0 4 c-6-5-9-9-5-11 2-1 4 0 5 2 1-2 3-3 5-2 4 2 1 6-5 11z" fill="#ef476f"/></g>` : ""}
-      <g class="pz-brazo pz-brazo-i"><ellipse cx="${100 - bx}" cy="${cy - cry * 0.1 + f.brazos * 0.45}" rx="${f.brazos * 0.5}" ry="${f.brazos}" fill="url(#pz-negro-${uid})"/></g>
+      <!-- brazos con color sólido (no degradé): en algunos celulares el degradé desaparecía al rotar -->
+      <g class="pz-brazo pz-brazo-i"><ellipse cx="${100 - bx}" cy="${cy - cry * 0.1 + f.brazos * 0.45}" rx="${f.brazos * 0.5}" ry="${f.brazos}" fill="#2a2628"/></g>
       <g class="pz-brazo pz-brazo-d">
-        <ellipse cx="${100 + bx}" cy="${cy - cry * 0.1 + f.brazos * 0.45}" rx="${f.brazos * 0.5}" ry="${f.brazos}" fill="url(#pz-negro-${uid})"/>
+        <ellipse cx="${100 + bx}" cy="${cy - cry * 0.1 + f.brazos * 0.45}" rx="${f.brazos * 0.5}" ry="${f.brazos}" fill="#2a2628"/>
         <g class="pz-bambu-mano" opacity="${f.bambu ? 1 : 0}">
           <rect x="${100 + bx - 3}" y="${cy - 44}" width="7" height="70" rx="3" fill="#7cc36b" transform="rotate(12 ${100 + bx} ${cy})"/>
           <path d="M${100 + bx + 6} ${cy - 30} q14 -12 22 -4 q-12 4 -22 4z" fill="#5aa84b"/>
@@ -204,7 +205,8 @@
       const bucle = (ts) => {
         // si el panda ya no está en pantalla (se cambió de vista), se apaga su animación
         if (this.muerto || !this.cont.isConnected) { this.muerto = true; return; }
-        if (ts - ultimoDibujo >= this.msPorCuadro) { ultimoDibujo = ts; this.cuadro(ts); }
+        // margen amplio: en pantallas de 60 Hz dibuja siempre (sin tirones); en 120 Hz, uno sí y uno no
+        if (ts - ultimoDibujo >= this.msPorCuadro * 0.7) { ultimoDibujo = ts; this.cuadro(ts); }
         requestAnimationFrame(bucle);
       };
       requestAnimationFrame(bucle);
