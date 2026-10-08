@@ -280,9 +280,8 @@
         case "amor":
           this.expresion("corazon", 2.4); s.saltoY.empujar(-520); s.squash.empujar(6); this.corazones(8); break;
         case "necesita":
-          // brazos para arriba hacia afuera (izquierdo gira positivo, derecho negativo)
-          this.expresion("triste", 2.5); s.brazoI.obj = 150; s.brazoD.obj = -150;
-          setTimeout(() => { s.brazoI.obj = 0; s.brazoD.obj = 0; }, 2400); s.saltoY.empujar(-260); break;
+          // brazos para arriba hacia afuera durante 2,4 s (los baja cuadro() solo)
+          this.expresion("triste", 2.5); this.brazosArribaHasta = this.t + 2.4; s.saltoY.empujar(-260); break;
         case "saludo":
           this.estado("saludando", true); setTimeout(() => this.estado("saludando", false), 1600); break;
         case "sorpresa":
@@ -388,8 +387,11 @@
       if (e.has("hablando") && !e.has("saludando")) bd += Math.sin(T * 2.7) * 10 - this.nivelVoz * 15;
       // colgando (lo están arrastrando): brazos arriba y hacia afuera, que se vean al costado de la cabeza
       if (colgando) { bi = 140 + Math.sin(T * 4) * 10; bd = -140 - Math.sin(T * 4) * 10; }
-      if (Math.abs(s.brazoI.obj) < 100 || bi !== 0) s.brazoI.obj = bi;
-      if (Math.abs(s.brazoD.obj) < 100 || bd !== 0) s.brazoD.obj = bd;
+      // "Necesito amor": brazos arriba un ratito (si no lo están arrastrando)
+      if (!colgando && this.t < (this.brazosArribaHasta || 0)) { bi = 150; bd = -150; }
+      // siempre se fija el objetivo: al soltarlo o terminar la reacción, los dos brazos bajan solos
+      s.brazoI.obj = bi;
+      s.brazoD.obj = bd;
       const hombroY = 150;
       E.brazoI.setAttribute("transform", `rotate(${s.brazoI.paso(dt).toFixed(2)} 64 ${hombroY})`);
       E.brazoD.setAttribute("transform", `rotate(${s.brazoD.paso(dt).toFixed(2)} 136 ${hombroY})`);
