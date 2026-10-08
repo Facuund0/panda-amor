@@ -29,4 +29,8 @@ object Config {
     fun guardarFlotante(ctx: Context, encendido: Boolean) {
         prefs(ctx).edit().putBoolean("flotante", encendido).apply()
     }
+
+    /** Panda flotante quieto (no camina solo). Se cambia tocándolo 3 veces o desde Ajustes. */
+    fun quieto(ctx: Context): Boolean = prefs(ctx).getBoolean("quieto", false)
+    fun guardarQuieto(ctx: Context, q: Boolean) { prefs(ctx).edit().putBoolean("quieto", q).apply() }
 }

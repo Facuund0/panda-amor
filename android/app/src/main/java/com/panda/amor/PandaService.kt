@@ -208,9 +208,13 @@ class CapaToque(private val servicio: PandaService, private val avisar: (String)
     private var ventanaX = 0; private var ventanaY = 0
     private var arrastrando = false
     private var largoHecho = false
-    private var ultimoToque = 0L
+    private var toques = 0
     private val largo = Runnable { largoHecho = true; avisar("largo") }
-    private val tocar = Runnable { avisar("tap") }
+    // Cuenta los toques seguidos: 1 = mimos, 2 = abrir la app, 3 o más = quedarse quieto / volver a pasear
+    private val resolverToques = Runnable {
+        val n = toques; toques = 0
+        avisar(when { n >= 3 -> "triple"; n == 2 -> "doble"; else -> "tap" })
+    }
 
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean = true
 
@@ -236,9 +240,9 @@ class CapaToque(private val servicio: PandaService, private val avisar: (String)
                     arrastrando -> avisar("arrastre_fin")
                     largoHecho -> {}
                     e.actionMasked == MotionEvent.ACTION_UP -> {
-                        val ahora = System.currentTimeMillis()
-                        if (ahora - ultimoToque < 300) { h.removeCallbacks(tocar); ultimoToque = 0; avisar("doble") }
-                        else { ultimoToque = ahora; h.postDelayed(tocar, 300) }
+                        toques++
+                        h.removeCallbacks(resolverToques)
+                        h.postDelayed(resolverToques, 320)
                     }
                 }
                 arrastrando = false

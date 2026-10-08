@@ -93,7 +93,7 @@ Cada uno entra a **aistudio.google.com** con **su propia cuenta de Google** y cr
    - **Batería:** quitar el límite. Si no, Samsung, Xiaomi y otras marcas cierran al panda.
    - **Voz:** en Ajustes → Voz probá el "Tono de nene". Con "Elegir otra voz del celu" podés cambiar a la de Google.
 
-**Panda flotante:** un toque le da mimos · doble toque abre la app · mantener apretado manda "Necesito amor" · arrastrar lo mueve.
+**Panda flotante:** un toque le da mimos · doble toque abre la app · **tres toques lo dejan quieto** (o lo vuelven a soltar; también en Ajustes) · mantener apretado manda "Necesito amor" · arrastrar lo mueve.
 
 ---
 

@@ -72,6 +72,10 @@ class Puente(
     }
 
     // ---------- panda flotante y permisos ----------
+    // Panda flotante quieto (lo leen las dos pantallas: la app y el flotante)
+    @JavascriptInterface fun quieto(): Boolean = Config.quieto(ctx)
+    @JavascriptInterface fun ponerQuieto(q: Boolean) = Config.guardarQuieto(ctx, q)
+
     @JavascriptInterface fun flotanteActivo(): Boolean = Config.flotanteEncendido(ctx) && Settings.canDrawOverlays(ctx)
 
     @JavascriptInterface fun activarFlotante(encender: Boolean): String {

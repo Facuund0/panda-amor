@@ -32,6 +32,15 @@
 
   const Puente = {
     esAndroid: () => !!A(),
+    // Panda flotante quieto: se guarda en el celular (en el navegador, en localStorage)
+    quieto() {
+      try { if (A()?.quieto) return !!A().quieto(); } catch {}
+      try { return localStorage.getItem("panda-quieto") === "1"; } catch { return false; }
+    },
+    ponerQuieto(q) {
+      try { if (A()?.ponerQuieto) return A().ponerQuieto(!!q); } catch {}
+      try { localStorage.setItem("panda-quieto", q ? "1" : "0"); } catch {}
+    },
     // ¿La app principal está abierta? En el navegador siempre false.
     appAbierta() { try { return !!A()?.appAbierta?.(); } catch { return false; } },
     // Versión del APK instalado (0 si es una versión vieja o el navegador)

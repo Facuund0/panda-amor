@@ -99,7 +99,7 @@
   // ---------------------------------------------------------------
   async function pasear() {
     const an = R.animoVisible(E.mascota);
-    if (ocupado || conGlobo || an.clave === "dormido" || E.mascota.se_fue) return;
+    if (ocupado || conGlobo || an.clave === "dormido" || E.mascota.se_fue || P.quieto()) return;
     ocupado = true;
     const p = pantalla(), t = tam(), actual = pos();
     let x, y;
@@ -161,6 +161,14 @@
     if (tipo === "arrastre_inicio") { panda.colgando(true); return; }
     if (tipo === "arrastre_fin") { panda.colgando(false); return; }
     if (tipo === "doble") return P.abrirApp("");
+    if (tipo === "triple") {
+      // 3 toques: se queda fijo donde está (o vuelve a pasear)
+      const q = !P.quieto();
+      P.ponerQuieto(q);
+      P.vibrar("caricia");
+      panda.reaccion(q ? "sorpresa" : "saludo");
+      return decir(q ? "¡Me quedo quietito acá! 📌 Tocame 3 veces para volver a pasear." : "¡Yupi, a pasear! 🐾", { segundos: 4 });
+    }
     if (tipo === "tap") {
       if (E.mascota.se_fue) return decir("Me fui… 🎒 Abran la app para adoptar un panda nuevo.");
       panda.reaccion("caricia");
@@ -247,7 +255,7 @@
   function simulador() {
     document.body.classList.add("simulado");
     const v = $("#ventana");
-    let abajo = null, movio = false, tLargo, ultimoTap = 0, tTap;
+    let abajo = null, movio = false, tLargo, toques = 0, tTap;
     v.addEventListener("pointerdown", (e) => {
       abajo = { x: e.clientX, y: e.clientY, vx: ventanaSim.x, vy: ventanaSim.y }; movio = false;
       v.setPointerCapture(e.pointerId);
@@ -264,9 +272,10 @@
       if (!abajo) return;
       if (movio) { window.pandaToque("arrastre_fin"); abajo = null; return; }
       abajo = null;
-      const ahora = Date.now();
-      if (ahora - ultimoTap < 300) { clearTimeout(tTap); ultimoTap = 0; window.pandaToque("doble"); }
-      else { ultimoTap = ahora; tTap = setTimeout(() => window.pandaToque("tap"), 300); }
+      // igual que en Android: 1 toque = mimos, 2 = abrir la app, 3 = quieto / pasear
+      toques++;
+      clearTimeout(tTap);
+      tTap = setTimeout(() => { const n = toques; toques = 0; window.pandaToque(n >= 3 ? "triple" : n === 2 ? "doble" : "tap"); }, 320);
     });
     P.abrirApp = () => { location.href = "index.html"; };
   }

@@ -683,6 +683,8 @@
       ${android ? `<div class="tarjeta"><h3>🐼 Panda en la pantalla</h3>
         <div class="fila"><div>Panda flotante<div class="desc">Camina por la pantalla aunque uses otras apps</div></div>
           <label class="interruptor"><input type="checkbox" id="a-flotante" ${P.flotanteActivo() ? "checked" : ""}><span></span></label></div>
+        <div class="fila"><div>Que se quede quieto 📌<div class="desc">No camina solo (para que no se meta cuando escribís). También: tocalo 3 veces rápido</div></div>
+          <label class="interruptor"><input type="checkbox" id="a-quieto" ${P.quieto() ? "checked" : ""}><span></span></label></div>
         <div class="fila"><div>Permisos<div class="desc">${perm.flotante ? "✅" : "❌"} Mostrar sobre otras apps · ${perm.notificaciones ? "✅" : "❌"} Notificaciones · ${perm.ubicacion ? "✅" : "❌"} Ubicación · ${perm.bateria ? "✅" : "⚠️"} Sin límite de batería</div></div></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
           ${perm.flotante ? "" : `<button class="btn btn-sec btn-chico" data-permiso="flotante">Permitir flotante</button>`}
@@ -743,6 +745,7 @@
       </div>`;
 
     $$("[data-permiso]").forEach((b) => b.addEventListener("click", () => P.pedirPermiso(b.dataset.permiso)));
+    $("#a-quieto")?.addEventListener("change", (e) => { P.ponerQuieto(e.target.checked); aviso(e.target.checked ? "📌 Se queda quieto donde está" : "🐾 Vuelve a pasear"); });
     $("#a-flotante")?.addEventListener("change", (e) => {
       const r = P.activarFlotante(e.target.checked);
       if (r === "permiso") { aviso("Activá \"Mostrar sobre otras apps\" y volvé"); e.target.checked = false; }
