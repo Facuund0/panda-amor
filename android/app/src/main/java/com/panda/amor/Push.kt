@@ -17,8 +17,24 @@ class MensajeriaPush : FirebaseMessagingService() {
         val d = m.data
         val tipo = d["tipo"] ?: "general"
         if (MainActivity.enPrimerPlano) return // con la app abierta ya avisa ella
-        Avisos.mostrar(this, d["titulo"] ?: "Nuestro Panda 🐼", d["texto"] ?: "", tipo)
+        val titulo = d["titulo"] ?: "Nuestro Panda 🐼"
+        val texto = d["texto"] ?: ""
+        Avisos.mostrar(this, titulo, texto, tipo)
         Avisos.vibrar(this, Push.patron(tipo))
+        // El panda lee el aviso en voz alta (si el panda flotante está prendido, ya lo lee él)
+        if (Push.habla(this) && PandaService.instancia == null) leer(titulo, texto)
+    }
+
+    /** Dice el aviso con la voz del celular y espera a que termine (si no, Android corta el audio). */
+    private fun leer(titulo: String, texto: String) {
+        val limpio = { t: String -> t.replace(Regex("[\\x{1F000}-\\x{1FAFF}\\x{2600}-\\x{27BF}\\x{FE0F}\\x{200D}]"), "").trim() }
+        val frase = listOf(limpio(titulo), limpio(texto)).filter { it.isNotEmpty() && !it.startsWith("Tocá") }.joinToString(". ")
+        if (frase.isEmpty()) return
+        val listo = java.util.concurrent.CountDownLatch(1)
+        VozCelular.hablar(this, frase.take(300), Push.tono(this), "push-" + System.currentTimeMillis()) { tipo ->
+            if (tipo != "inicio") listo.countDown()
+        }
+        try { listo.await(20, java.util.concurrent.TimeUnit.SECONDS) } catch (_: Exception) {}
     }
 }
 
@@ -38,6 +54,13 @@ object Push {
     /** La web avisa cuando el servidor ya manda push: así el panda flotante no repite las notificaciones. */
     fun listo(ctx: Context): Boolean = prefs(ctx).getBoolean("push_listo", false)
     fun marcarListo(ctx: Context, si: Boolean) { prefs(ctx).edit().putBoolean("push_listo", si).apply() }
+
+    /** Interruptor de Ajustes: que el panda lea los avisos en voz alta (por defecto, sí). */
+    fun habla(ctx: Context): Boolean = prefs(ctx).getBoolean("push_habla", true)
+    fun guardarHabla(ctx: Context, si: Boolean) { prefs(ctx).edit().putBoolean("push_habla", si).apply() }
+    /** El "tono de nene" elegido en Ajustes (la web lo copia acá). */
+    fun tono(ctx: Context): Float = prefs(ctx).getFloat("tono_voz", 1.35f)
+    fun guardarTono(ctx: Context, t: Float) { prefs(ctx).edit().putFloat("tono_voz", t).apply() }
 
     // Mismos patrones que web/js/puente.js
     fun patron(tipo: String): String = when (tipo) {

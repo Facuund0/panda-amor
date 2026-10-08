@@ -79,6 +79,9 @@ class Puente(
     @JavascriptInterface fun tokenPush(): String = Push.token(ctx)
     @JavascriptInterface fun pushListo(si: Boolean) = Push.marcarListo(ctx, si)
     @JavascriptInterface fun pushActivo(): Boolean = Push.listo(ctx)
+    @JavascriptInterface fun pushHabla(): Boolean = Push.habla(ctx)
+    @JavascriptInterface fun ponerPushHabla(si: Boolean) = Push.guardarHabla(ctx, si)
+    @JavascriptInterface fun ponerTonoVoz(t: Double) = Push.guardarTono(ctx, t.toFloat())
 
     // Panda flotante quieto (lo leen las dos pantallas: la app y el flotante)
     @JavascriptInterface fun quieto(): Boolean = Config.quieto(ctx)

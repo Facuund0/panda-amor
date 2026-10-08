@@ -740,6 +740,8 @@
         ${android ? `<button class="btn btn-sec btn-chico" id="a-tts" style="margin-bottom:6px">Elegir otra voz del celu</button>` : ""}
         <div class="fila"><div style="flex:1">Tono de nene<div class="desc">Más a la derecha = más agudo y tierno</div>
           <input type="range" id="a-tono" min="1" max="1.7" step="0.05" value="${Voz.tono}"></div></div>
+        ${P.hayPushHabla() ? `<div class="fila"><div>Leer los avisos en voz alta 🔔<div class="desc">Con la app cerrada, ${esc(nombres().panda)} lee lo que te manda ${esc(nombres().otro)}. Apagalo si estás en clase</div></div>
+          <label class="interruptor"><input type="checkbox" id="a-push-habla" ${P.pushHabla() ? "checked" : ""}><span></span></label></div>` : ""}
         <div class="fila"><div>Voz activada</div><label class="interruptor"><input type="checkbox" id="a-voz" ${Voz.activa ? "checked" : ""}><span></span></label></div>
         <button class="btn btn-sec btn-ancho btn-chico" id="a-probar">▶️ Probar voz</button>
       </div>
@@ -790,7 +792,9 @@
       const r = P.activarFlotante(e.target.checked);
       if (r === "permiso") { aviso("Activá \"Mostrar sobre otras apps\" y volvé"); e.target.checked = false; }
     });
-    $("#a-tono").addEventListener("change", (e) => { Voz.tono = +e.target.value; decir("¡Hola! ¿Así te gusta mi voz?"); });
+    $("#a-push-habla")?.addEventListener("change", (e) => { P.ponerPushHabla(e.target.checked); aviso(e.target.checked ? "🔊 Va a leer los avisos" : "🔇 Solo notificación, sin voz"); });
+    P.ponerTonoVoz(Voz.tono);
+    $("#a-tono").addEventListener("change", (e) => { Voz.tono = +e.target.value; P.ponerTonoVoz(Voz.tono); decir("¡Hola! ¿Así te gusta mi voz?"); });
     $("#a-voz").addEventListener("change", (e) => { Voz.activa = e.target.checked; });
     $("#a-probar").addEventListener("click", () => decir(`Hola ${nombres().yo}, soy ${nombres().panda}. ¡Te quiero mucho!`));
     $("#a-auto").addEventListener("change", async (e) => { E = await D.ajustes({ auto: e.target.checked }); });

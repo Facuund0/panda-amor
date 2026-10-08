@@ -34,6 +34,11 @@
     esAndroid: () => !!A(),
     // Notificaciones push (Firebase): token de este celular ("" en el navegador o app vieja)
     tokenPush() { try { return A()?.tokenPush ? A().tokenPush() || "" : ""; } catch { return ""; } },
+    // ¿El panda lee los avisos en voz alta con la app cerrada? (solo app Android 1.27+)
+    hayPushHabla() { try { return !!A()?.pushHabla; } catch { return false; } },
+    pushHabla() { try { return !!A()?.pushHabla?.(); } catch { return false; } },
+    ponerPushHabla(si) { try { A()?.ponerPushHabla?.(!!si); } catch {} },
+    ponerTonoVoz(t) { try { A()?.ponerTonoVoz?.(+t); } catch {} },
     pushListo(si) { try { A()?.pushListo?.(!!si); } catch {} },
     // true si ya llegan las push: el panda flotante no repite las notificaciones
     pushActivo() { try { return !!A()?.pushActivo?.(); } catch { return false; } },
