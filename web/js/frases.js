@@ -140,12 +140,15 @@
   // ---------- Tono de un mensaje o frase (sin IA: por palabras) ----------
   // Para que el panda no diga "¡qué lindo!" cuando alguien escribe "estoy triste".
   const TONOS = [
-    ["triste", /\b(triste|tristeza|llor(o|ando|é|e)|mal\b|bajon|bajón|deprimid|angustiad|me duele|dolid|sol[oa] |vac[ií]o|no doy m[aá]s|horrible)/i],
+    ["triste", /\b(triste|tristeza|llor(o|ando|é|e)|mal\b|bajon|bajón|deprimid|angustiad|me duele|dolid|sol[oa]\b|vac[ií]o|no doy m[aá]s|horrible|no es un buen d[ií]a|necesito tu abrazo)/i],
     ["enojado", /\b(enojad|enfadad|bronca|me molest|me jod|odio|harta?|cansad[oa] de|ya fue)/i],
-    ["perdon", /\b(perd[oó]n|disculp|lo siento|me equivoqu)/i],
-    ["extrano", /\b(te extra[nñ]o|extra[nñ]ándote|extra[nñ]arte|quiero verte|ven[ií] ya)/i],
+    ["perdon", /\b(perd[oó]n|disculp|lo siento|me equivoqu|lastimarte|hablamos tranqui)/i],
+    ["extrano", /\b(te extra[nñ]o|extra[nñ]ándote|extra[nñ]arte|quiero verte|ven[ií] ya|me hac[eé]s falta|cuento las horas)/i],
+    ["noches", /\b(buenas noches|que sue[nñ]es|a dormir|descans[aá])/i],
+    ["animo", /\b(vos pod[eé]s|orgullos[oa]|estoy ac[aá]|fuerza|[aá]nimo)/i],
     ["preocupado", /\b(preocupad|nervios|ansios|miedo|asustad)/i],
   ];
+  const TONO_DE_TEMA = { "😢 Triste": "triste", "🥺 Te extraño": "extrano", "🙏 Perdón": "perdon", "💪 Ánimo": "animo", "🌙 Buenas noches": "noches" };
   function tonoDe(texto) {
     const t = String(texto || "");
     for (const [tono, re] of TONOS) if (re.test(t)) return tono;
@@ -159,6 +162,8 @@
       perdon: ["Se lo llevo a {otro}. Pedir perdón es de valientes 💗"],
       extrano: ["¡Yo también extraño cuando no están juntos! Ya se lo digo a {otro}."],
       preocupado: ["Se lo llevo a {otro}. Todo va a estar bien, estoy acá 🐼"],
+      noches: ["Se lo llevo bajito a {otro} para no despertarlo 🌙", "¡Qué tierno! Buenas noches a los dos 🌙"],
+      animo: ["¡Eso! Se lo llevo a {otro} con toda la energía 💪", "Qué lindo darle ánimo a {otro}. ¡Allá va!"],
     },
     // al recibirlo (lo que dice el panda del otro)
     recibido: {
@@ -167,6 +172,8 @@
       perdon: ["{otro} te pide perdón. ¿Lo perdonás? 🥺"],
       extrano: ["¡{otro} te extraña muchísimo!"],
       preocupado: ["{otro} está preocupado/a. Dale un poquito de calma 💗"],
+      noches: ["{otro} te desea buenas noches 🌙"],
+      animo: ["¡{otro} te da todo su ánimo! 💪"],
     },
   };
   const respuestaTono = (lado, tono, datos) => {
@@ -175,5 +182,5 @@
     return lista[Math.floor(Math.random() * lista.length)].replace(/\{(\w+)\}/g, (_, k) => datos[k] ?? "");
   };
 
-  globalThis.Frases = { tonoDe, respuestaTono, frase, deOtro, saludo, SENTIMIENTOS, TRISTES, RESPUESTA_SENTIR, IDEAS_FRASES, PREGUNTAS, preguntaDelDia };
+  globalThis.Frases = { TONO_DE_TEMA, tonoDe, respuestaTono, frase, deOtro, saludo, SENTIMIENTOS, TRISTES, RESPUESTA_SENTIR, IDEAS_FRASES, PREGUNTAS, preguntaDelDia };
 })();

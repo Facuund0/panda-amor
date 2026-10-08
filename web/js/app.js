@@ -377,6 +377,7 @@
     hacer(a);
   }
 
+  let temaFrase = null; // tema elegido en "Frase" (Triste, Perdón…)
   async function hacer(tipo, texto = null) {
     if (!E.otro && ["necesito_amor", "pedir_ubicacion"].includes(tipo)) return aviso("Primero tu pareja se tiene que unir con el código");
     // reacción inmediata (no espera a internet)
@@ -406,7 +407,9 @@
     else if (tipo === "caricia") dicho = Math.random() < 0.6 ? F.frase("caricia", n) : null;
     else if (tipo === "frase" || tipo === "mensaje") {
       // si es algo triste/enojado/etc., el panda no festeja: responde acorde
-      const tono = F.tonoDe(texto);
+      // primero el tema que eligió al escribir la frase (si no es "Amor"), si no, por las palabras
+      const tono = (tipo === "frase" && F.TONO_DE_TEMA[temaFrase] && F.tonoDe(texto) == null ? F.TONO_DE_TEMA[temaFrase] : F.tonoDe(texto));
+      temaFrase = null;
       if (tono) { dicho = F.respuestaTono("enviado", tono, n); if (["triste", "enojado", "preocupado"].includes(tono)) panda.reaccion("triste"); }
       else if (tipo === "frase") dicho = F.frase("frase", n);
     }
@@ -418,8 +421,7 @@
     const ganadas = r.monedas_ganadas || 0;
     if (r.sumo + r.extra > 0 || ganadas) aviso([r.sumo + r.extra > 0 ? `+${r.sumo + r.extra} 💗${r.extra ? ` (racha +${r.extra})` : ""}` : "", ganadas ? `+${ganadas} 🪙` : ""].filter(Boolean).join(" · "));
     if (dicho) decir(dicho);
-    // si algo triste o enojado, el ánimo del panda se recalcula ya (1 consulta), no a los 8 mensajes
-    if (r.analizar || (["frase", "mensaje"].includes(tipo) && ["triste", "enojado"].includes(F.tonoDe(texto)))) analizarAnimo();
+    if (r.analizar) analizarAnimo(); // cada 8 mensajes
     revisarDesafiosPendientes();
     return r;
   }
@@ -448,7 +450,9 @@
       <div class="chips" id="f-ideas" style="margin:10px 0 14px"></div>
       <p class="nota" style="margin-bottom:12px">Las frases suman +8 💗 y quedan guardadas en Recuerdos.</p>
       <button class="btn btn-ancho" id="f-ok">Enviar con ${esc(nombres().panda)} 🐼</button>`);
+    let temaElegido = null;
     const ideas = (tema) => {
+      temaElegido = tema;
       $("#f-ideas").innerHTML = F.IDEAS_FRASES[tema].map((i) => `<button class="chip" data-idea="${esc(i)}">${esc(i)}</button>`).join("");
       $$("[data-idea]").forEach((b) => b.addEventListener("click", () => ($("#f-frase").value = b.dataset.idea)));
       $$("[data-tema]").forEach((b) => b.classList.toggle("activo", b.dataset.tema === tema));
@@ -458,7 +462,7 @@
     $("#f-ok").addEventListener("click", () => {
       const t = $("#f-frase").value.trim();
       if (!t) return aviso("Escribí la frase");
-      cerrarHoja(); hacer("frase", t);
+      cerrarHoja(); temaFrase = temaElegido; hacer("frase", t);
     });
   }
 
