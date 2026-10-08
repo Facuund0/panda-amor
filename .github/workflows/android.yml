@@ -31,8 +31,14 @@ jobs:
           # número de versión que sube solo (el actualizador de la app lo compara)
           VERSION=$(( ${{ github.run_number }} + 10 ))
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-          ./gradlew assembleDebug --no-daemon --stacktrace -PversionCode=$VERSION -PpandaUrl="${{ vars.PANDA_URL || 'https://panda-amor.vercel.app/' }}"
+          set -o pipefail
+          ./gradlew assembleDebug --no-daemon --stacktrace -PversionCode=$VERSION -PpandaUrl="${{ vars.PANDA_URL || 'https://panda-amor.vercel.app/' }}" 2>&1 | tee ../compilacion.log
           cp app/build/outputs/apk/debug/app-debug.apk ../NuestroPanda.apk
+
+      - name: Mostrar el error (si falló)
+        if: failure()
+        run: |
+          grep -E "^e: |What went wrong|^> |error:" -A2 compilacion.log | head -40 | while IFS= read -r l; do echo "::error::$l"; done
 
       - uses: actions/upload-artifact@v4
         with:
