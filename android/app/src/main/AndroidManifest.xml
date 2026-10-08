@@ -53,6 +53,15 @@
                 android:value="Mascota virtual que camina sobre la pantalla y avisa a la pareja" />
         </service>
 
+        <!-- Notificaciones push de Firebase (llegan con la app cerrada) -->
+        <service
+            android:name=".MensajeriaPush"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <!-- Comparte el APK descargado con el instalador de Android (actualizaciones) -->
         <provider
             android:name=".ApkProvider"

@@ -3,6 +3,7 @@
 //  todo está bien configurado (no muestra ninguna clave).
 // =============================================================
 import { rpc, gemini, keyGemini, SUPABASE_URL, SUPABASE_ANON_KEY, LIMITE_DIARIO, MODELOS } from "./_comun.js";
+import { cuentaServicio, tokenAcceso } from "./_push.js";
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
@@ -26,5 +27,10 @@ export default async function handler(req, res) {
     });
     out.gemini["persona" + lugar] = r.ok ? `OK (${r.modelo})` : { error: r.errores };
   }
+  // Notificaciones push (Firebase)
+  const sa = cuentaServicio();
+  if (!sa) out.push = process.env.FIREBASE_SERVICE_ACCOUNT ? "ERROR: FIREBASE_SERVICE_ACCOUNT no es un JSON válido (pegá el archivo completo)" : "falta FIREBASE_SERVICE_ACCOUNT";
+  else if (req.query?.probar !== "1") out.push = `cuenta cargada (${sa.project_id}) · agregá ?probar=1 para probarla`;
+  else { try { await tokenAcceso(sa); out.push = `OK (${sa.project_id})`; } catch (e) { out.push = "ERROR: " + e.message; } }
   res.status(200).json(out);
 }

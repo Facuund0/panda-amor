@@ -75,6 +75,11 @@ class Puente(
     }
 
     // ---------- panda flotante y permisos ----------
+    // ---------- notificaciones push ----------
+    @JavascriptInterface fun tokenPush(): String = Push.token(ctx)
+    @JavascriptInterface fun pushListo(si: Boolean) = Push.marcarListo(ctx, si)
+    @JavascriptInterface fun pushActivo(): Boolean = Push.listo(ctx)
+
     // Panda flotante quieto (lo leen las dos pantallas: la app y el flotante)
     @JavascriptInterface fun quieto(): Boolean = Config.quieto(ctx)
     @JavascriptInterface fun ponerQuieto(q: Boolean) = Config.guardarQuieto(ctx, q)

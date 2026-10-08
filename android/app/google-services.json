@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "712381538654",
+    "project_id": "panda-f9c42",
+    "storage_bucket": "panda-f9c42.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:712381538654:android:3a3975b732e5aa4e65afcf",
+        "android_client_info": {
+          "package_name": "com.panda.amor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC2O94f4b94VmdabRahHxgF0iADmldqtb4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

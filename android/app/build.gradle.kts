@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.gms.google-services")
 }
 
 val urlApp: String = (project.findProperty("pandaUrl") as String?)?.trim()?.ifEmpty { null }
@@ -57,3 +58,8 @@ kotlin {
     compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
 }
 
+dependencies {
+    // Notificaciones push (Firebase Cloud Messaging): llegan con la app cerrada
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-messaging")
+}

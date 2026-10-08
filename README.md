@@ -72,6 +72,7 @@ Cada uno entra a **aistudio.google.com** con **su propia cuenta de Google** y cr
 | `GEMINI_KEY_1` | key de Gemini de quien **crea** el panda |
 | `GEMINI_KEY_2` | key de Gemini de quien **se une** con el código |
 | `LIMITE_GEMINI_DIARIO` | (opcional) consultas por persona por día. Por defecto 60 |
+| `FIREBASE_SERVICE_ACCOUNT` | (opcional) el .json de la cuenta de servicio de Firebase, completo: activa las notificaciones push con la app cerrada |
 | `CRON_SECRET` | (opcional) cualquier texto largo, protege la limpieza diaria |
 
 4. Deploy. Para comprobar, abrí `https://TU-APP.vercel.app/api/estado`: tiene que decir `"conexion": "OK"`. Con `?probar=1` también prueba las keys de Gemini.

@@ -846,6 +846,91 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
+--  NOTIFICACIONES PUSH (Firebase): llegan aunque la app esté cerrada
+--  1) La app guarda el "token" de cada celular (guardar_token_push).
+--  2) Cuando se guarda un evento importante, este trigger le pide a Vercel
+--     (/api/push) que mande la notificación al celular de la otra persona.
+--  Los tokens no se pueden leer desde la app (RLS sin políticas).
+-- ---------------------------------------------------------------------
+create table if not exists public.push_tokens (
+  user_id     uuid primary key references auth.users (id) on delete cascade,
+  token       text not null,
+  actualizado timestamptz not null default now()
+);
+alter table public.push_tokens enable row level security;
+
+create or replace function public.guardar_token_push(token_push text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'Sin sesión'; end if;
+  if token_push is null or char_length(token_push) not between 20 and 4096 then raise exception 'Token inválido'; end if;
+  -- si el mismo celular estaba con otra sesión, se lo saca de ahí
+  delete from public.push_tokens where token = token_push and user_id <> auth.uid();
+  insert into public.push_tokens (user_id, token, actualizado) values (auth.uid(), token_push, now())
+  on conflict (user_id) do update set token = excluded.token, actualizado = now();
+end $$;
+grant execute on function public.guardar_token_push(text) to authenticated;
+
+-- pg_net permite llamar a una URL desde la base (viene en Supabase)
+do $$ begin
+  create extension if not exists pg_net;
+exception when others then raise notice 'pg_net no disponible: no habrá notificaciones push (el panda flotante sigue avisando).';
+end $$;
+
+-- Dirección de la función de Vercel que manda las push (cambiala si tu app tiene otra dirección)
+create or replace function public.url_push() returns text language sql immutable as $$
+  select 'https://panda-amor.vercel.app/api/push'
+$$;
+
+create or replace function public.avisar_push() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  quien text; panda text; titulo text; cuerpo text; tipo_aviso text := new.tipo; tokens jsonb;
+  txt text := coalesce(new.texto, '');
+begin
+  if new.tipo not in ('necesito_amor','pedir_ubicacion','mensaje','frase','ubicacion','sentir','foto','pregunta','sistema') then return new; end if;
+  if new.tipo = 'sistema' and txt not like 'aviso_abandono|%' and txt not like 'se_fue|%' then return new; end if;
+
+  -- a quién: la otra persona (en los avisos del sistema, a los dos)
+  select jsonb_agg(t.token) into tokens
+    from public.push_tokens t join public.miembros mi on mi.user_id = t.user_id
+   where mi.pareja_id = new.pareja_id and t.user_id <> new.de;
+  if tokens is null then return new; end if;
+
+  select nombre into quien from public.miembros where user_id = new.de;
+  quien := coalesce(quien, 'Tu pareja');
+  select nombre into panda from public.mascotas where pareja_id = new.pareja_id;
+  panda := coalesce(panda, 'Tu panda');
+
+  if new.tipo = 'necesito_amor' then titulo := '💗 ' || quien || ' necesita amor'; cuerpo := 'Tocá para mandarle mimos';
+  elsif new.tipo = 'pedir_ubicacion' then titulo := '📍 ' || quien || ' quiere saber dónde estás'; cuerpo := 'Tocá para compartir tu ubicación';
+  elsif new.tipo = 'mensaje' then titulo := '💬 ' || quien; cuerpo := txt;
+  elsif new.tipo = 'frase' then titulo := '💌 Frase de ' || quien; cuerpo := txt;
+  elsif new.tipo = 'ubicacion' then titulo := '📍 ' || quien || ' compartió dónde está'; cuerpo := 'Tocá para verlo en el mapa';
+  elsif new.tipo = 'sentir' then titulo := '💭 ' || quien || ': ' || split_part(txt, ' · ', 1); cuerpo := coalesce(nullif(substr(txt, char_length(split_part(txt, ' · ', 1)) + 4), ''), 'Tocá para responderle');
+  elsif new.tipo = 'foto' then titulo := '📸 ' || quien || ' te mandó una foto'; cuerpo := case when txt in ('', '📸') then 'Tocá para verla' else txt end;
+  elsif new.tipo = 'pregunta' then titulo := '❓ ' || quien || ' respondió la pregunta del día'; cuerpo := 'Respondé para ver qué puso';
+  elsif txt like 'aviso_abandono|2%' then titulo := '🎒 ' || panda || ' está por irse'; cuerpo := 'Última oportunidad: cuídenlo hoy o se va.'; tipo_aviso := 'aviso';
+  elsif txt like 'aviso_abandono|%' then titulo := '🥺 ' || panda || ' se siente solo'; cuerpo := 'Hace días que nadie lo cuida.'; tipo_aviso := 'aviso';
+  else titulo := '🎒 ' || split_part(txt, '|', 2) || ' se fue'; cuerpo := 'Nadie lo cuidó por 7 días. Abran la app para adoptar uno nuevo.'; tipo_aviso := 'aviso';
+  end if;
+
+  perform net.http_post(
+    url := public.url_push(),
+    body := jsonb_build_object('tokens', tokens, 'titulo', left(titulo, 120), 'texto', left(cuerpo, 300), 'tipo', tipo_aviso),
+    headers := '{"Content-Type": "application/json"}'::jsonb,
+    timeout_milliseconds := 8000
+  );
+  return new;
+exception when others then
+  return new; -- un aviso que falla nunca impide guardar el evento
+end $$;
+
+drop trigger if exists eventos_push on public.eventos;
+create trigger eventos_push after insert on public.eventos
+  for each row execute function public.avisar_push();
+
+-- ---------------------------------------------------------------------
 --  LIMPIEZA AUTOMÁTICA DIARIA (4 AM Argentina = 7 UTC)
 --  Si pg_cron no está disponible no pasa nada: Vercel también la ejecuta.
 -- ---------------------------------------------------------------------

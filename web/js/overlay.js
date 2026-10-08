@@ -211,11 +211,11 @@
         const t = ev.texto || "", np = E.mascota.nombre;
         if (t.startsWith("aviso_abandono|")) {
           const nivel = t.split("|")[1] === "2" ? 2 : 1;
-          P.vibrar("aviso");
-          P.notificar(nivel === 2 ? `🎒 ${np} está por irse` : `🥺 ${np} se siente solo`, nivel === 2 ? "Última oportunidad: cuídenlo hoy o se va." : "Hace días que nadie lo cuida.", "aviso");
+          if (!P.pushActivo()) P.vibrar("aviso");
+          if (!P.pushActivo()) P.notificar(nivel === 2 ? `🎒 ${np} está por irse` : `🥺 ${np} se siente solo`, nivel === 2 ? "Última oportunidad: cuídenlo hoy o se va." : "Hace días que nadie lo cuida.", "aviso");
           panda.reaccion("triste"); decir(F.frase(`aviso_abandono_${nivel}`, nombres()));
         } else if (t.startsWith("se_fue|")) {
-          P.notificar(`🎒 ${t.split("|")[1]} se fue`, "Nadie lo cuidó por 7 días. Abran la app para adoptar uno nuevo.", "aviso");
+          if (!P.pushActivo()) P.notificar(`🎒 ${t.split("|")[1]} se fue`, "Nadie lo cuidó por 7 días. Abran la app para adoptar uno nuevo.", "aviso");
           decir("Me voy… cuídense mucho. 🎒");
         }
         return;
@@ -226,7 +226,9 @@
     let texto = F.deOtro(ev.tipo, n);
     const sent = ev.tipo === "sentir" ? F.SENTIMIENTOS.find((x) => String(ev.texto).startsWith(x.emoji)) : null;
     if (sent) texto = (F.RESPUESTA_SENTIR[sent.id] || texto).replace(/\{otro\}/g, n.otro);
-    P.vibrar(ev.tipo);
+    // si llegan las push, la notificación y la vibración las hace Firebase (no repetir)
+    const conPush = P.pushActivo() && ["necesito_amor", "pedir_ubicacion", "mensaje", "frase", "ubicacion", "sentir", "foto", "pregunta"].includes(ev.tipo);
+    if (!conPush) P.vibrar(ev.tipo);
     // notificación del sistema (la app nativa la omite si la app principal está abierta)
     const titulos = {
       necesito_amor: `💗 ${n.otro} necesita amor`, pedir_ubicacion: `📍 ${n.otro} quiere saber dónde estás`,
@@ -238,7 +240,7 @@
     const cuerpo = { necesito_amor: "Tocá para mandarle mimos", pedir_ubicacion: "Tocá para compartir tu ubicación", mensaje: ev.texto, frase: ev.texto,
       sentir: String(ev.texto || "").split(" · ").slice(1).join(" · ") || "Tocá para responderle", foto: ev.texto && ev.texto !== "📸" ? ev.texto : "Tocá para verla", pregunta: "Respondé para ver qué puso" };
     if (["necesito_amor", "pedir_ubicacion", "mensaje", "frase", "ubicacion", "sentir", "foto", "pregunta"].includes(ev.tipo) && !(ev.tipo === "pedir_ubicacion" && E.yo.compartir_auto)) {
-      P.notificar(titulos[ev.tipo], cuerpo[ev.tipo] || "", ev.tipo);
+      if (!conPush) P.notificar(titulos[ev.tipo], cuerpo[ev.tipo] || "", ev.tipo);
     }
     // reacción del panda
     const reac = { caricia: "caricia", comida: "comida", comer: "comida", frase: "amor", necesito_amor: "necesita", mensaje: "sorpresa",

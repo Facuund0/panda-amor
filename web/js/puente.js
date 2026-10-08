@@ -32,6 +32,11 @@
 
   const Puente = {
     esAndroid: () => !!A(),
+    // Notificaciones push (Firebase): token de este celular ("" en el navegador o app vieja)
+    tokenPush() { try { return A()?.tokenPush ? A().tokenPush() || "" : ""; } catch { return ""; } },
+    pushListo(si) { try { A()?.pushListo?.(!!si); } catch {} },
+    // true si ya llegan las push: el panda flotante no repite las notificaciones
+    pushActivo() { try { return !!A()?.pushActivo?.(); } catch { return false; } },
     // Globo nativo del panda flotante (app 1.23+). Devuelve false si no existe: se usa el globo web.
     globoNativo(texto, ms) { try { if (A()?.globo) { A().globo(texto, Math.round(ms)); return true; } } catch {} return false; },
     // Panda flotante quieto: se guarda en el celular (en el navegador, en localStorage)

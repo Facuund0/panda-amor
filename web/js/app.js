@@ -213,6 +213,7 @@
     document.addEventListener("pointermove", (e) => panda?.mirarA(e.clientX, e.clientY), { passive: true });
 
     D.suscribir(alRecibir);
+    activarPush();
     try { eventos = await D.eventos({ limite: 80 }); } catch {}
     try { usoGemini = await D.usoGemini(); } catch {}
     pintarPregunta();
@@ -234,6 +235,19 @@
     if (D.modo === "supabase") document.addEventListener("visibilitychange", async () => {
       if (document.visibilityState === "visible") { E = await D.revisar(); actualizarTodo(false); eventos = await D.eventos({ limite: 80 }); if (vista === "mensajes") pintarChat(); pintarPregunta(); pintarTarjetaUbicacion(); }
     });
+  }
+
+  // Notificaciones push: sube el token de este celular a Supabase (para que lleguen con la app cerrada).
+  // Si todo está listo (Vercel con Firebase + base actualizada), el panda flotante deja de repetirlas.
+  async function activarPush() {
+    if (D.modo !== "supabase" || !P.esAndroid()) return;
+    let token = "";
+    for (let i = 0; i < 6 && !token; i++) { token = P.tokenPush(); if (!token) await esperar(2500); }
+    if (!token) return;
+    let servidor = false;
+    try { const r = await fetch("/api/config?solo=version", { cache: "no-store" }); servidor = r.ok && !!(await r.json()).push; } catch {}
+    try { await D.guardarTokenPush(token); P.pushListo(servidor); }
+    catch { P.pushListo(false); } // base sin actualizar: sigue avisando el panda flotante
   }
 
   // Si en Vercel hay una versión nueva de la web, se recarga sola al volver a la app

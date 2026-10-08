@@ -7,7 +7,9 @@ const VERSION = (process.env.VERCEL_GIT_COMMIT_SHA || "local").slice(0, 7);
 
 export default function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
-  if (req.query?.solo === "version") return res.status(200).json({ version: VERSION });
+  // push: si Vercel tiene la cuenta de Firebase (la app usa esto para no repetir avisos)
+  const push = !!process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (req.query?.solo === "version") return res.status(200).json({ version: VERSION, push });
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return res.status(404).json({ error: "Supabase no configurado: la app arranca en modo demo" });
-  res.status(200).json({ supabaseUrl: SUPABASE_URL, supabaseAnonKey: SUPABASE_ANON_KEY, limiteGemini: LIMITE_DIARIO, version: VERSION });
+  res.status(200).json({ supabaseUrl: SUPABASE_URL, supabaseAnonKey: SUPABASE_ANON_KEY, limiteGemini: LIMITE_DIARIO, version: VERSION, push });
 }

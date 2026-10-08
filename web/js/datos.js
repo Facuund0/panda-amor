@@ -54,6 +54,7 @@
     favorito(id, valor) { return this.rpc("marcar_favorito", { evento_id: id, valor }); }
     salir() { return this.rpc("salir_de_pareja"); }
     usoGemini() { return this.rpc("mi_uso_gemini"); }
+    guardarTokenPush(token) { return this.rpc("guardar_token_push", { token_push: token }); }
     compartirUbicacion(lat, lng, prec) { return this.rpc("compartir_ubicacion", { la: lat, ln: lng, prec: Math.round(prec || 0) }); }
     // ---------- v2 (estilo Pou) ----------
     comprar(item) { return this.rpc("comprar", { item }); }
@@ -413,6 +414,7 @@
     async favorito(id, valor) { const e = this.db.eventos.find((x) => x.id === id); if (e) e.favorito = valor; this.guardar(); }
     async salir() { this.db = null; localStorage.removeItem(CLAVE_DEMO); }
     async usoGemini() { return this.db?.uso?.[this.hoy()] || 0; }
+    async guardarTokenPush() { return null; } // en el demo no hay push
     async compartirUbicacion(lat, lng, prec) {
       this.db.ubicaciones[YO] = { lat, lng, precision_m: prec, actualizada: new Date().toISOString() };
       this.agregarEvento(YO, "ubicacion", null, true); return { ok: true };
