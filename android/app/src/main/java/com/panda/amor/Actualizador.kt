@@ -2,11 +2,8 @@ package com.panda.amor
 
 import android.app.Activity
 import android.app.AlertDialog
-import android.app.PendingIntent
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageInstaller
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -82,29 +79,36 @@ object Actualizador {
         }
         trabajando = true
         Toast.makeText(act, "Descargando la actualización…", Toast.LENGTH_LONG).show()
-        val app = act.applicationContext
         thread(name = "actualizar") {
             try {
-                val c = descargar(BASE + "NuestroPanda.apk")
-                val pi = app.packageManager.packageInstaller
-                val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
-                if (c.contentLengthLong > 0) params.setSize(c.contentLengthLong)
-                val id = pi.createSession(params)
-                pi.openSession(id).use { sesion ->
-                    sesion.openWrite("NuestroPanda.apk", 0, -1).use { salida ->
-                        c.inputStream.use { it.copyTo(salida, 64 * 1024) }
-                        sesion.fsync(salida)
-                    }
-                    val aviso = Intent(app, ResultadoInstalacion::class.java)
-                    val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
-                    sesion.commit(PendingIntent.getBroadcast(app, 77, aviso, flags).intentSender)
+                // 1) bajar el APK a la carpeta interna de la app
+                val apk = ApkProvider.archivo(act)
+                apk.parentFile?.mkdirs()
+                descargar(BASE + "NuestroPanda.apk").inputStream.use { entrada ->
+                    apk.outputStream().use { entrada.copyTo(it, 64 * 1024) }
+                }
+                // 2) abrir el instalador de Android (el mismo que cuando la instalaste desde el navegador).
+                //    Antes se usaba PackageInstaller y Samsung lo rechazaba ("Self update… ABORTED").
+                act.runOnUiThread {
+                    try {
+                        val i = Intent(Intent.ACTION_VIEW)
+                            .setDataAndType(ApkProvider.uri(act), "application/vnd.android.package-archive")
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                        act.startActivity(i)
+                    } catch (e: Exception) { abrirEnNavegador(act) }
                 }
             } catch (e: Exception) {
-                act.runOnUiThread { Toast.makeText(act, "No se pudo actualizar: ${e.message}", Toast.LENGTH_LONG).show() }
+                act.runOnUiThread { abrirEnNavegador(act) }
             } finally {
                 trabajando = false
             }
         }
+    }
+
+    /** Último recurso: bajarla con el navegador, como la primera vez. */
+    private fun abrirEnNavegador(act: Activity) {
+        Toast.makeText(act, "Se descarga con el navegador: tocá el archivo al terminar para instalar", Toast.LENGTH_LONG).show()
+        try { act.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(BASE + "NuestroPanda.apk"))) } catch (_: Exception) {}
     }
 
     /** Al volver de dar el permiso de instalar, sigue sola. */
@@ -112,25 +116,6 @@ object Actualizador {
         val v = pendiente
         if (v > 0 && Build.VERSION.SDK_INT >= 26 && act.packageManager.canRequestPackageInstalls()) {
             pendiente = 0; instalar(act, v)
-        }
-    }
-}
-
-/** Android avisa acá cómo va la instalación: si hace falta, muestra la pantalla de "¿Actualizar?". */
-class ResultadoInstalacion : BroadcastReceiver() {
-    override fun onReceive(ctx: Context, intent: Intent) {
-        when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, -999)) {
-            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                @Suppress("DEPRECATION")
-                val confirmar = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT) ?: return
-                confirmar.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                try { ctx.startActivity(confirmar) } catch (_: Exception) {}
-            }
-            PackageInstaller.STATUS_SUCCESS -> {}
-            else -> {
-                val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "error"
-                Toast.makeText(ctx, "No se pudo actualizar: $msg", Toast.LENGTH_LONG).show()
-            }
         }
     }
 }

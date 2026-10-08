@@ -230,9 +230,33 @@
     setTimeout(revisarFraseDelDia, 2500);
     procesarParametros();
     setInterval(() => actualizarTodo(false), 60000); // hambre y ánimo cambian con el tiempo
+    vigilarVersion();
     if (D.modo === "supabase") document.addEventListener("visibilitychange", async () => {
       if (document.visibilityState === "visible") { E = await D.revisar(); actualizarTodo(false); eventos = await D.eventos({ limite: 80 }); if (vista === "mensajes") pintarChat(); pintarPregunta(); pintarTarjetaUbicacion(); }
     });
+  }
+
+  // Si en Vercel hay una versión nueva de la web, se recarga sola al volver a la app
+  // (así nunca queda una versión vieja guardada en el celular)
+  let versionWeb = null;
+  async function versionPublicada() {
+    try {
+      const r = await fetch("/api/config?solo=version", { cache: "no-store" });
+      if (r.ok) return (await r.json()).version || null;
+    } catch {}
+    return null;
+  }
+  async function vigilarVersion() {
+    if (D.modo !== "supabase") return;
+    versionWeb = await versionPublicada();
+    const revisar = async () => {
+      const v = await versionPublicada();
+      // no recarga si está escribiendo o con una ventana abierta
+      const ocupada = !$("#hoja").hidden || modo || document.activeElement?.matches?.("input, textarea");
+      if (v && versionWeb && v !== versionWeb && !ocupada) location.reload();
+    };
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") revisar(); });
+    setInterval(revisar, 30 * 60000);
   }
 
   function actualizarTodo(animarCrecimiento = true) {

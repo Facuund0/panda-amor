@@ -23,5 +23,16 @@
       "path": "/api/mantenimiento",
       "schedule": "0 7 * * *"
     }
+  ],
+  "headers": [
+    {
+      "source": "/((?!api/).*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
+        }
+      ]
+    }
   ]
 }

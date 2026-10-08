@@ -71,6 +71,12 @@ class MainActivity : Activity() {
             }
         }
         web.addJavascriptInterface(Puente(this, web, actividad = this), "AndroidPanda")
+        // Recién actualizada la app: borrar la página guardada para que cargue la web nueva
+        val prefs = getSharedPreferences("panda", MODE_PRIVATE)
+        if (prefs.getInt("version_web_limpia", 0) != BuildConfig.VERSION_CODE) {
+            web.clearCache(true)
+            prefs.edit().putInt("version_web_limpia", BuildConfig.VERSION_CODE).apply()
+        }
         val raiz = FrameLayout(this).apply { setBackgroundColor(rosa); addView(web) }
         setContentView(raiz)
         ajustarBordes(raiz)

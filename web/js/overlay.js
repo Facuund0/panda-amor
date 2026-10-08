@@ -302,6 +302,12 @@
     setTimeout(cicloPaseo, 4000);
     setTimeout(cicloNecesidades, 90000);
     setInterval(async () => { try { E = await D.estado(); refrescarAspecto(); } catch {} }, 10 * 60000);
+    // si se publicó una versión nueva de la web, el panda flotante se recarga solo
+    if (D.modo === "supabase") {
+      const version = async () => { try { const r = await fetch("/api/config?solo=version", { cache: "no-store" }); return r.ok ? (await r.json()).version : null; } catch { return null; } };
+      const inicial = await version();
+      setInterval(async () => { const v = await version(); if (inicial && v && v !== inicial && !conGlobo && !ocupado) location.reload(); }, 30 * 60000);
+    }
   }
 
   window.__pandaFlotante = { pasear, decir }; // para pruebas

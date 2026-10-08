@@ -53,9 +53,12 @@
                 android:value="Mascota virtual que camina sobre la pantalla y avisa a la pareja" />
         </service>
 
-        <receiver
-            android:name=".ResultadoInstalacion"
-            android:exported="false" />
+        <!-- Comparte el APK descargado con el instalador de Android (actualizaciones) -->
+        <provider
+            android:name=".ApkProvider"
+            android:authorities="${applicationId}.apk"
+            android:exported="false"
+            android:grantUriPermissions="true" />
 
         <receiver
             android:name=".ArranqueReceiver"
