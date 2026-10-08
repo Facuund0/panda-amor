@@ -61,6 +61,7 @@ class MainActivity : Activity() {
             mostrarError(error)
         }
         if (Config.urlConfigurada(this)) cargar(intent) else pedirUrl()
+        Actualizador.revisar(this)
     }
 
     private fun mostrarError(texto: String) {
@@ -115,6 +116,7 @@ class MainActivity : Activity() {
             PandaService.iniciar(this, desdeApp = true)
         }
         web.evaluateJavascript("window.dispatchEvent(new Event('android-volvio'))", null)
+        Actualizador.alVolver(this)
     }
 
     override fun onPause() {

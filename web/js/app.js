@@ -499,7 +499,9 @@
           ${perm.notificaciones ? "" : `<button class="btn btn-sec btn-chico" data-permiso="notificaciones">Notificaciones</button>`}
           ${perm.ubicacion ? "" : `<button class="btn btn-sec btn-chico" data-permiso="ubicacion">Ubicación</button>`}
           ${perm.bateria ? "" : `<button class="btn btn-sec btn-chico" data-permiso="bateria">Batería</button>`}
-        </div></div>` : ""}
+        </div>
+        <button class="btn btn-sec btn-ancho btn-chico" id="a-actualizar" style="margin-top:8px">🔄 Buscar actualización${P.versionApp() ? ` (tenés la 1.${P.versionApp()})` : ""}</button>
+        </div>` : ""}
 
       <div class="tarjeta"><h3>🔊 Voz de ${esc(nombres().panda)}</h3>
         <div class="segmentos" id="a-motor">
@@ -581,6 +583,7 @@
       };
       pintarPiper();
       $("#a-tts")?.addEventListener("click", () => Voz.ajustesCelular());
+      $("#a-actualizar")?.addEventListener("click", () => P.buscarActualizacion());
     }
   }
 

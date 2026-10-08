@@ -10,3 +10,4 @@ android/app/libs/*.aar
 *.apk
 *.keystore
 .idea
+!android/panda.keystore

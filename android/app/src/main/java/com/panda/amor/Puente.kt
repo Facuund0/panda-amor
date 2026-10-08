@@ -59,6 +59,10 @@ class Puente(
         try { abrir(Intent("com.android.settings.TTS_SETTINGS")) } catch (_: Exception) {}
     }
 
+    // ---------- actualizaciones ----------
+    @JavascriptInterface fun version(): Int = BuildConfig.VERSION_CODE
+    @JavascriptInterface fun buscarActualizacion() { actividad?.let { a -> a.runOnUiThread { Actualizador.revisar(a, manual = true) } } }
+
     // ---------- ubicación ----------
     @JavascriptInterface fun obtenerUbicacion(id: String) {
         web.post {

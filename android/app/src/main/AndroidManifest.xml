@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Para que la app se actualice sola desde GitHub (Android pide confirmar) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Android 11+: para poder usar el motor de voz del celular -->
     <queries>
         <intent>
@@ -56,6 +58,10 @@
             android:name=".VozService"
             android:exported="false"
             android:process=":voz" />
+
+        <receiver
+            android:name=".ResultadoInstalacion"
+            android:exported="false" />
 
         <receiver
             android:name=".ArranqueReceiver"

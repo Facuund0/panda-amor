@@ -116,6 +116,11 @@ Pedile cambios a la IA de VS Code (Copilot, Claude, etc.). El archivo **AGENTS.m
 
 Los cambios en `web/` y `api/` se publican solos al subirlos a GitHub (Vercel). Los cambios en `android/` necesitan compilar el APK de nuevo (Actions).
 
+## 🔄 Actualizaciones
+- **web/ y api/**: se actualizan solos al subir a GitHub (Vercel). No hace falta reinstalar nada.
+- **android/**: GitHub compila un APK nuevo y la app avisa sola "Hay una versión nueva" (o Ajustes → Buscar actualización). Se instala encima, sin desinstalar.
+- La firma del APK es `android/panda.keystore`: **no la borres ni la cambies**, o Android obliga a desinstalar.
+
 ## 🆘 Problemas comunes
 - **La app arranca en "modo demo" estando en Vercel:** faltan `SUPABASE_URL` o `SUPABASE_ANON_KEY`, o falta hacer *Redeploy* después de cargarlas.
 - **"No se pudo iniciar sesión":** no activaste *Anonymous sign-ins* en Supabase.
