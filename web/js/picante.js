@@ -160,18 +160,58 @@
     ],
   };
 
+  // ---------- Mazo extra: se desbloquean 2 cartas nuevas por día ----------
+  // [nivel, tipo, texto]. El orden importa: van saliendo de a 2 por día desde que activaron el modo +18.
+  const EXTRA = [
+    [3, "reto", "Escribile en la espalda con el dedo lo que querés hacerle: tiene que adivinar."],
+    [2, "verdad", "¿Qué fue lo último que te hizo pensar en mí de forma picante?"],
+    [4, "reto", "Elegí una prenda de tu pareja y sacásela solo con la boca y los dientes."],
+    [3, "verdad", "¿Qué hago con las manos que te vuelve loco/a?"],
+    [5, "reto", "Juego del espejo: durante 3 minutos tu pareja tiene que imitar todo lo que le hacés."],
+    [4, "verdad", "¿Qué te gustaría que te haga si estuviéramos solos ahora mismo y sin apuro?"],
+    [2, "reto", "Dale besitos en el cuello hasta que se ría o suspire."],
+    [5, "verdad", "¿Cuál es tu momento favorito cuando estamos en la cama?"],
+    [3, "reto", "Mensaje al oído: describile despacito el próximo beso que le vas a dar."],
+    [4, "reto", "Cubrile los ojos y dale a probar algo dulce con un beso."],
+    [5, "reto", "Cuenta regresiva de 60 segundos: en ese tiempo se tienen que quedar sin ropa los dos."],
+    [3, "verdad", "¿Qué foto mía te gustaría tener solo para vos?"],
+    [4, "verdad", "¿En qué momento del día te dan más ganas de mí?"],
+    [5, "reto", "Tu pareja elige el lugar de la casa y vos ponés el resto 🔥"],
+    [2, "verdad", "¿Qué te gustaría que te diga en un mensaje picante en medio del día?"],
+    [4, "reto", "Masajito con aceite empezando por los pies y subiendo… despacio."],
+    [5, "verdad", "¿Qué parte del juego de hoy te gustó más? Repítanla."],
+    [3, "reto", "Durante la próxima carta tenés que estar pegadito/a a tu pareja, sin separarte."],
+    [4, "reto", "Elegí una canción: mientras suena, solo podés besar a tu pareja de la cintura para arriba."],
+    [5, "reto", "Último reto del día: apaguen el celu y sigan sin cartas 😏"],
+  ];
+  // Cartas que escribieron ustedes (se comparten entre los dos celulares)
+  let propias = [];
+  function setPropias(lista) { propias = Array.isArray(lista) ? lista.filter((c) => c && c.texto) : []; }
+  // Cuántas cartas del mazo extra ya se desbloquearon (2 por día desde que activaron +18)
+  function extraDesbloqueadas(desde, hoy = new Date()) {
+    if (!desde) return 0;
+    const dias = Math.floor((hoy - new Date(desde)) / 86400e3) + 1;
+    return Math.max(0, Math.min(EXTRA.length, dias * 2));
+  }
+  let desdeExtra = null;
+  function setDesde(fecha) { desdeExtra = fecha; }
+
   const azar = (lista) => lista[Math.floor(Math.random() * lista.length)];
   // Evita repetir las últimas cartas que salieron
   const ultimas = [];
   function carta(nivel, tipo) {
     nivel = Math.max(1, Math.min(5, nivel | 0));
     const t = tipo === "azar" ? (Math.random() < 0.5 ? "verdad" : "reto") : tipo;
-    const lista = (t === "verdad" ? VERDADES : RETOS)[nivel];
+    const base = (t === "verdad" ? VERDADES : RETOS)[nivel];
+    const extra = EXTRA.slice(0, extraDesbloqueadas(desdeExtra)).filter(([nv, tp]) => nv === nivel && tp === t).map((x) => x[2]);
+    const mias = propias.filter((c) => +c.nivel === nivel && c.tipo === t).map((c) => c.texto);
+    const lista = [...base, ...extra, ...mias, ...mias]; // las suyas salen un poco más seguido
     let c, i = 0;
     do { c = azar(lista); } while (ultimas.includes(c) && i++ < 20);
     ultimas.push(c); if (ultimas.length > 30) ultimas.shift();
     return { tipo: t, nivel, texto: c };
   }
 
-  globalThis.Picante = { NIVELES, VERDADES, RETOS, carta };
+  const nuevasHoy = () => { const n = extraDesbloqueadas(desdeExtra); return n ? EXTRA.slice(Math.max(0, n - 2), n) : []; };
+  globalThis.Picante = { NIVELES, VERDADES, RETOS, EXTRA, carta, setPropias, setDesde, extraDesbloqueadas, nuevasHoy, propias: () => propias };
 })();

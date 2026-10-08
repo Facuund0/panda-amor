@@ -114,6 +114,7 @@ alter table public.eventos add column if not exists ref bigint;
 -- v3: calendario de la pareja, frase y pregunta del día sin repetir, ubicación en vivo
 alter table public.parejas   add column if not exists fecha_inicio date;                -- cuando empezaron
 alter table public.parejas   add column if not exists fechas jsonb not null default '[]'; -- [{titulo, fecha:'AAAA-MM-DD', emoji}]
+alter table public.parejas   add column if not exists cartas_propias jsonb not null default '[]'; -- modo +18: [{nivel, tipo, texto}]
 alter table public.mascotas  add column if not exists pregunta_dia text;
 alter table public.mascotas  add column if not exists frases_previas text[] not null default '{}';
 alter table public.mascotas  add column if not exists preguntas_previas text[] not null default '{}';  -- para las fotos: id en public.fotos
@@ -193,7 +194,7 @@ declare p uuid := public.mi_pareja();
 begin
   if p is null then return json_build_object('pareja', null); end if;
   return json_build_object(
-    'pareja',   (select json_build_object('id', id, 'codigo', codigo, 'fecha_inicio', fecha_inicio, 'fechas', fechas) from public.parejas where id = p),
+    'pareja',   (select json_build_object('id', id, 'codigo', codigo, 'fecha_inicio', fecha_inicio, 'fechas', fechas, 'cartas_propias', cartas_propias) from public.parejas where id = p),
     'yo',       (select json_build_object('id', user_id, 'nombre', nombre, 'lugar', lugar, 'compartir_auto', compartir_auto)
                    from public.miembros where user_id = auth.uid()),
     'otro',     (select json_build_object('id', user_id, 'nombre', nombre, 'lugar', lugar)
@@ -491,6 +492,23 @@ begin
   insert into public.eventos (pareja_id, de, tipo) values (p, auth.uid(), 'ubicacion');
   return json_build_object('ok', true);
 end $$;
+
+-- Modo +18: cartas que escriben ustedes (las ven los dos)
+create or replace function public.guardar_cartas(cartas jsonb) returns json
+language plpgsql security definer set search_path = public as $$
+declare p uuid := public.mi_pareja(); limpio jsonb;
+begin
+  if p is null then raise exception 'No estás en una pareja'; end if;
+  select coalesce(jsonb_agg(jsonb_build_object('nivel', least(5, greatest(1, coalesce((c->>'nivel')::int, 3))),
+           'tipo', case when c->>'tipo' = 'verdad' then 'verdad' else 'reto' end,
+           'texto', left(c->>'texto', 250))), '[]'::jsonb)
+    into limpio from jsonb_array_elements(coalesce(cartas, '[]'::jsonb)) c
+   where coalesce(trim(c->>'texto'), '') <> '';
+  if jsonb_array_length(limpio) > 200 then raise exception 'Máximo 200 cartas'; end if;
+  update public.parejas set cartas_propias = limpio where id = p;
+  return public.mi_estado();
+end $$;
+grant execute on function public.guardar_cartas(jsonb) to authenticated;
 
 -- Calendario: fecha en que empezaron y fechas especiales (cumpleaños, etc.)
 create or replace function public.guardar_fechas(inicio date, especiales jsonb) returns json

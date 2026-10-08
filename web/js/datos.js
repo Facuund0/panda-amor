@@ -55,6 +55,7 @@
     salir() { return this.rpc("salir_de_pareja"); }
     usoGemini() { return this.rpc("mi_uso_gemini"); }
     // ---------- v3: calendario y ubicación en vivo ----------
+    guardarCartas(cartas) { return this.rpc("guardar_cartas", { cartas: cartas || [] }); }
     guardarFechas(inicio, fechas) { return this.rpc("guardar_fechas", { inicio: inicio || null, especiales: fechas || [] }); }
     iniciarVivo() { return this.rpc("iniciar_vivo"); }
     detenerVivo() { return this.rpc("detener_vivo", { clave: null }); }
@@ -150,7 +151,7 @@
       const db = this.db;
       if (!db) return { pareja: null };
       return {
-        pareja: { id: "demo", codigo: db.codigo, fecha_inicio: db.fecha_inicio || null, fechas: db.fechas || [] },
+        pareja: { id: "demo", codigo: db.codigo, fecha_inicio: db.fecha_inicio || null, fechas: db.fechas || [], cartas_propias: db.cartas || [] },
         yo: { id: YO, nombre: db.yo.nombre, lugar: 1, compartir_auto: db.yo.compartir_auto },
         otro: { id: OTRO, nombre: db.otro.nombre, lugar: 2 },
         mascota: { ...db.mascota },
@@ -424,6 +425,7 @@
     async salir() { this.db = null; localStorage.removeItem(CLAVE_DEMO); }
     async usoGemini() { return this.db?.uso?.[this.hoy()] || 0; }
     async guardarTokenPush() { return null; } // en el demo no hay push
+    async guardarCartas(cartas) { this.db.cartas = cartas || []; this.guardar(); return this.estado(); }
     async guardarFechas(inicio, fechas) { this.db.fecha_inicio = inicio || null; this.db.fechas = fechas || []; this.guardar(); return this.estado(); }
     async iniciarVivo() {
       // demo: "tu pareja" también comparte en vivo y se mueve un poquito

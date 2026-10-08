@@ -921,6 +921,7 @@
     $("#a-18").addEventListener("change", (e) => {
       if (e.target.checked && !confirm("Esta sección tiene contenido sexual para adultos.\n\n¿Los dos son mayores de 18 y quieren activarla?")) { e.target.checked = false; return; }
       guardar("panda-18", e.target.checked ? "1" : "");
+      if (e.target.checked && !leer("panda-18-desde", "")) guardar("panda-18-desde", new Date().toISOString());
       $("#b-picante").hidden = !e.target.checked;
       aviso(e.target.checked ? "🔥 Listo: está en Panda → Entre nosotros" : "Modo +18 apagado");
     });
@@ -1440,6 +1441,9 @@
   // ---------- MODO +18 🔥: verdad o reto con niveles de picante ----------
   function abrirPicante() {
     const n = nombres(), PC = globalThis.Picante;
+    PC.setPropias(E.pareja?.cartas_propias || []);
+    PC.setDesde(leer("panda-18-desde", "") || (guardar("panda-18-desde", new Date().toISOString()), new Date().toISOString()));
+    const nuevas = PC.nuevasHoy().length, propiasN = PC.propias().length;
     const st = { nivel: +leer("panda-18-nivel", "1") || 1, escalada: leer("panda-18-escalada", "1") === "1", jugadas: 0, turno: 0, carta: null };
     const turnoDe = () => (st.turno % 2 === 0 ? n.yo : n.otro);
     const pintar = () => {
@@ -1450,6 +1454,7 @@
         <div class="fila" style="margin:6px 0"><div>Escalada<div class="desc">Sube un nivel cada 3 cartas</div></div>
           <label class="interruptor"><input type="checkbox" id="pc-escalada" ${st.escalada ? "checked" : ""}><span></span></label></div>
         <p class="pc-turno">Turno de <b>${esc(turnoDe())}</b> · nivel ${nv.emoji}</p>
+        <p class="nota" style="text-align:center;margin:-4px 0 8px">✨ ${nuevas ? `Hoy se desbloquearon ${nuevas} cartas nuevas` : "Mañana se desbloquean cartas nuevas"} · ${propiasN} ${propiasN === 1 ? "carta" : "cartas"} de ustedes</p>
         ${c ? `<div class="pc-carta ${c.tipo}"><span class="pc-tipo">${c.tipo === "verdad" ? "🗣️ VERDAD" : "🎲 RETO"} · ${PC.NIVELES[c.nivel].emoji}</span><p>${esc(c.texto)}</p></div>`
             : `<div class="pc-carta vacia"><p>Elijan verdad, reto o al azar 😏</p></div>`}
         <div class="pc-botones">
@@ -1460,6 +1465,7 @@
         ${c ? `<div class="pc-botones dos">
           <button class="btn btn-sec btn-chico" id="pc-pasar">🙈 Pasar</button>
           <button class="btn btn-sec btn-chico" id="pc-mandar">📲 Mandársela a ${esc(n.otro)}</button></div>` : ""}
+        <button class="btn btn-sec btn-ancho btn-chico" id="pc-propias" style="margin-top:10px">✏️ Nuestras cartas (escriban las suyas)</button>
         <p class="nota" style="margin-top:10px">Siempre se puede pasar. Si algo no les copa, paren: palabra de seguridad <b>"panda"</b> 🐼</p>
       </div>`);
       $$("[data-nivel]").forEach((b) => b.addEventListener("click", () => { st.nivel = +b.dataset.nivel; st.jugadas = 0; guardar("panda-18-nivel", st.nivel); pintar(); }));
@@ -1472,12 +1478,40 @@
         panda?.reaccion("amor");
         pintar();
       }));
+      $("#pc-propias").addEventListener("click", () => editarCartas(abrirPicante));
       $("#pc-pasar")?.addEventListener("click", () => { st.turno++; st.carta = null; pintar(); });
       $("#pc-mandar")?.addEventListener("click", async () => {
         try {
           await D.accion("mensaje", `🔥 ${c.tipo === "verdad" ? "Verdad" : "Reto"} (nivel ${c.nivel}): ${c.texto}`.slice(0, 300));
           aviso(`Se la mandaste a ${n.otro} 😏`);
         } catch (e) { aviso(msjError(e)); }
+      });
+    };
+    pintar();
+  }
+
+  // Cartas propias: las escriben ustedes, se guardan para los dos y salen mezcladas en el juego
+  function editarCartas(volver) {
+    let lista = [...(E.pareja?.cartas_propias || [])];
+    const PC = globalThis.Picante;
+    const pintar = () => {
+      abrirHoja(`<div class="picante"><h2>✏️ Nuestras cartas</h2>
+        <p class="nota" style="margin-bottom:10px">Escriban sus propias verdades y retos, como quieran. Las ven los dos y salen mezcladas en el juego (más seguido que las otras).</p>
+        <div class="campo"><textarea id="cp-texto" maxlength="250" placeholder="Ej: Reto: …"></textarea></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <select id="cp-tipo" class="select-voz"><option value="reto">🎲 Reto</option><option value="verdad">🗣️ Verdad</option></select>
+          <select id="cp-nivel" class="select-voz">${[1, 2, 3, 4, 5].map((i) => `<option value="${i}" ${i === 4 ? "selected" : ""}>Nivel ${i} · ${PC.NIVELES[i].nombre}</option>`).join("")}</select>
+        </div>
+        <button class="btn btn-ancho btn-chico" id="cp-agregar" style="margin-top:8px">➕ Agregar carta</button>
+        <div class="lista-fechas" style="margin-top:12px">${lista.map((c, i) => `<div class="fecha-item"><span class="fe">${c.tipo === "verdad" ? "🗣️" : "🎲"}</span><div><b>${esc(c.texto)}</b><small>Nivel ${c.nivel} · ${PC.NIVELES[c.nivel]?.nombre || ""}</small></div><button class="btn-chico" data-quitar-c="${i}" aria-label="Quitar">✕</button></div>`).join("") || `<p class="nota">Todavía no escribieron ninguna.</p>`}</div>
+        <button class="btn btn-ancho" id="cp-guardar" style="margin-top:12px">Guardar y volver al juego</button></div>`);
+      $("#cp-agregar").addEventListener("click", () => {
+        const texto = $("#cp-texto").value.trim(); if (!texto) return aviso("Escribí la carta");
+        lista.unshift({ texto, tipo: $("#cp-tipo").value, nivel: +$("#cp-nivel").value }); pintar();
+      });
+      $$("[data-quitar-c]").forEach((b) => b.addEventListener("click", () => { lista.splice(+b.dataset.quitarC, 1); pintar(); }));
+      $("#cp-guardar").addEventListener("click", async () => {
+        try { E = await D.guardarCartas(lista); aviso("Cartas guardadas 🔥"); volver?.(); } catch (e) { aviso(msjError(e)); }
       });
     };
     pintar();
