@@ -179,6 +179,7 @@
               <button class="accion amor" data-accion="necesito_amor"><i>📳</i>Necesito amor<small>le vibra</small></button>
               <button class="accion" data-accion="ubicacion"><i>📍</i>¿Dónde estás?<small>ubicación</small></button>
               <button class="accion" data-accion="hablar"><i>💬</i>Hablar<small>con IA</small></button>
+              <button class="accion amor" data-accion="llegue"><i>🏠</i>¡Llegué!<small>o sacudí al panda</small></button>
               <button class="accion alerta-btn" data-accion="alerta"><i>🚨</i>¡Alerta!<small>en broma</small></button>
               <button class="accion amor" data-accion="fechas"><i>📅</i>Nuestras fechas<small>aniversarios</small></button>
             </div>
@@ -213,6 +214,7 @@
     $("#c-monedas").addEventListener("click", () => irA("tienda"));
     $("#f-foto").addEventListener("change", fotoElegida);
     prepararBanio();
+    prepararSacudida();
     document.addEventListener("pointermove", (e) => panda?.mirarA(e.clientX, e.clientY), { passive: true });
 
     D.suscribir(alRecibir);
@@ -369,6 +371,7 @@
     if (a === "ubicacion") return menuUbicacion();
     if (a === "hablar") return abrirChatPanda();
     if (a === "alerta") return formularioAlerta();
+    if (a === "llegue") return formularioLlegue();
     if (a === "fechas") return verCalendario();
     if (a === "necesito_amor") return confirmarNecesitoAmor();
     hacer(a);
@@ -404,6 +407,7 @@
     else if (tipo === "frase") dicho = F.frase("frase", n);
     else if (tipo === "necesito_amor") { dicho = F.frase("necesito_amor_enviado", n); panda.reaccion("necesita"); }
     else if (tipo === "pedir_ubicacion") dicho = F.frase("pedir_ubicacion", n);
+    else if (tipo === "llegue") { dicho = `¡Listo! Le avisé a ${n.otro} que llegaste 💗`; panda.reaccion("amor"); }
     else if (tipo === "alerta") { dicho = `¡Alerta enviada! A ${n.otro} le va a sonar la alarma 🚨`; panda.reaccion("sorpresa"); }
     if (r.nota === "racha") { panda.reaccion("amor"); dicho = F.frase("racha", n); }
     const ganadas = r.monedas_ganadas || 0;
@@ -625,6 +629,7 @@
       if (s && F.TRISTES.includes(s.id)) { panda.reaccion("triste"); alertaSentir(ev, s); }
       else panda.reaccion("amor");
     }
+    if (ev.tipo === "llegue") { panda.reaccion("amor"); texto = `¡${n.otro} llegó ${ev.texto || "bien"}! Qué alivio 💗`; aviso(`🏠 ${n.otro} llegó ${ev.texto || "bien"}`); }
     if (ev.tipo === "alerta") { mostrarAlarma(ev); texto = F.deOtro(ev.texto === "hombre" ? "alerta_hombre" : "alerta_mujer", n); }
     if (ev.tipo === "ubicacion" && ev.texto === "en_vivo") texto = F.deOtro("ubicacion_vivo", n);
     if (ev.tipo === "foto") { panda.reaccion("sorpresa"); aviso(`📸 ${n.otro} te mandó una foto · mirala en Mensajes`); }
@@ -662,7 +667,7 @@
   // Los mensajes se piden aparte de los eventos de cuidado: antes, con muchos mimos y comidas,
   // los mensajes viejos "desaparecían" de la lista (solo se mostraban los últimos 80 eventos).
   let chatMsjs = [];
-  const TIPOS_CHAT = ["mensaje", "frase", "sentir", "foto", "ubicacion", "pregunta", "necesito_amor", "pedir_ubicacion", "alerta", "sistema"];
+  const TIPOS_CHAT = ["mensaje", "frase", "sentir", "foto", "ubicacion", "pregunta", "necesito_amor", "pedir_ubicacion", "alerta", "llegue", "sistema"];
   async function cargarChat() {
     try { chatMsjs = await D.eventos({ limite: 300, tipos: TIPOS_CHAT }); } catch { return; }
     if (vista === "mensajes") pintarChat();
@@ -695,6 +700,8 @@
       } else if (e.tipo === "ubicacion") {
         const quien = esc(nombreDe(e.de));
         filas.push(`<button class="sistema sistema-ubic" data-ver-ubic="${e.de}">${e.texto === "en_vivo" ? "📡" : "📍"} ${quien} ${e.texto === "en_vivo" ? "empezó a compartir su ubicación en vivo" : "compartió su ubicación"} · ${R.fechaCorta(e.creado)} · <u>ver mapa</u></button>`);
+      } else if (e.tipo === "llegue") {
+        filas.push(`<div class="sistema sistema-llegue">${String(e.texto || "").startsWith("a casa") ? "🏠" : "📍"} ${esc(nombreDe(e.de))} llegó ${esc(e.texto || "bien")} · ${R.fechaCorta(e.creado)}</div>`);
       } else if (e.tipo === "alerta") {
         filas.push(`<div class="sistema sistema-alerta">🚨 ${esc(nombreDe(e.de))} mandó una alerta: ¿estás con ${e.texto === "hombre" ? "otro hombre" : "otra mujer"}? · ${R.fechaCorta(e.creado)}</div>`);
       } else if (sistema[e.tipo]) {
@@ -821,7 +828,9 @@
 
       <div class="tarjeta"><h3>🔊 Voz de ${esc(nombres().panda)}</h3>
         <p class="nota" style="margin-bottom:6px">${android ? "Usa la voz del celular con tono de nene." : "Usa la voz del navegador con tono de nene."}${Voz.disponible() ? "" : " ⚠️ Este dispositivo no tiene voz en castellano: el panda va a hablar solo con globitos."}</p>
-        ${android ? `<button class="btn btn-sec btn-chico" id="a-tts" style="margin-bottom:6px">Elegir otra voz del celu</button>` : ""}
+        ${android ? `<div class="campo" id="a-voces-caja" hidden><label>Voz</label><select id="a-voces" class="select-voz"></select>
+          <p class="nota" style="margin-top:4px">Si alguna suena a robot, probá otra: cada celular trae voces distintas.</p></div>
+          <button class="btn btn-sec btn-chico" id="a-tts" style="margin-bottom:6px">Ajustes de voz de Android</button>` : ""}
         <div class="fila"><div style="flex:1">Tono de nene<div class="desc">Más a la derecha = más agudo y tierno</div>
           <input type="range" id="a-tono" min="1" max="1.7" step="0.05" value="${Voz.tono}"></div></div>
         ${P.hayPushHabla() ? `<div class="fila"><div>Leer los avisos en voz alta 🔔<div class="desc">Con la app cerrada, ${esc(nombres().panda)} lee lo que te manda ${esc(nombres().otro)}. Apagalo si estás en clase</div></div>
@@ -860,6 +869,7 @@
           <button class="btn btn-sec btn-chico" data-sim="sentir">😢 Está triste</button>
           <button class="btn btn-sec btn-chico" data-sim="foto">📸 Manda foto</button>
           <button class="btn btn-sec btn-chico" data-sim="alerta">🚨 Manda alerta</button>
+          <button class="btn btn-sec btn-chico" data-sim="llegue">🏠 Llegó a casa</button>
           <button class="btn btn-sec btn-chico" data-abandono="3.2">🥺 3 días sin cuidarlo</button>
           <button class="btn btn-sec btn-chico" data-abandono="7.5">🎒 7 días (se va)</button>
           <button class="btn btn-sec btn-chico" data-monedas="200">🪙 +200 monedas</button>
@@ -898,6 +908,18 @@
     });
     if (android) {
       $("#a-tts")?.addEventListener("click", () => Voz.ajustesCelular());
+      // lista de voces del celular (tarda un poquito la primera vez)
+      const pintarVoces = (intento = 0) => {
+        const vs = P.vocesCelular(), sel = $("#a-voces"); if (!sel) return;
+        if (!vs.length) { if (intento < 6) setTimeout(() => pintarVoces(intento + 1), 700); return; }
+        $("#a-voces-caja").hidden = false;
+        const calidad = (c) => (c >= 400 ? "muy buena" : c >= 300 ? "buena" : "normal");
+        const elegida = vs.find((v) => v.actual);
+        sel.innerHTML = vs.map((v, i) => `<option value="${esc(v.nombre)}" ${v.actual ? "selected" : ""}>Voz ${i + 1} · ${esc(v.idioma)} · ${calidad(v.calidad)}${v.internet ? " · con internet" : ""}${v.predeterminada ? " ⭐ (la del celu)" : ""}</option>`).join("");
+        if (!elegida) sel.selectedIndex = Math.max(0, vs.findIndex((v) => v.predeterminada));
+        sel.onchange = () => { P.elegirVozCelular(sel.value); setTimeout(() => decir(`Hola ${nombres().yo}, ¿te gusta esta voz?`), 300); };
+      };
+      pintarVoces();
       $("#a-actualizar")?.addEventListener("click", () => P.buscarActualizacion());
       $("#a-probar-push")?.addEventListener("click", async () => {
         try {
@@ -1001,8 +1023,10 @@
     b.classList.toggle("bajo", k < 0.3);
   }
 
+  let ultimaSacudida = 0;
   function tocarPanda() {
     if (modo === "banio") return;
+    if (Date.now() - ultimaSacudida < 1500) return; // fue una sacudida, no un mimo
     if (E.mascota.se_fue) return;
     hacer("caricia");
   }
@@ -1343,6 +1367,44 @@
       const r = await hacer("pregunta", t);
       if (r) { eventos.unshift({ id: r.evento, de: E.yo.id, tipo: "pregunta", texto: t, creado: new Date().toISOString() }); pintarPregunta(); }
     });
+  }
+
+  // ---------- "¡LLEGUÉ, AMOR!" (botón, o sacudir al panda) ----------
+  function formularioLlegue() {
+    if (!E.otro) return aviso("Primero tu pareja se tiene que unir con el código");
+    const n = nombres();
+    abrirHoja(`<h2>🏠 ¡Llegué, amor!</h2>
+      <p class="nota" style="margin-bottom:12px">Le avisamos a ${esc(n.otro)} que llegaste bien. 💗</p>
+      <div style="display:grid;gap:10px">
+        <button class="btn btn-ancho" data-lugar="a casa">🏠 Llegué a casa</button>
+        <button class="btn btn-sec btn-ancho" data-lugar="a la facu">🎓 Llegué a la facu</button>
+        <button class="btn btn-sec btn-ancho" data-lugar="al trabajo">💼 Llegué al trabajo</button>
+        <button class="btn btn-sec btn-ancho" data-lugar="">📍 Llegué (sin decir dónde)</button>
+      </div>
+      <p class="nota" style="margin-top:12px">Atajo: <b>sacudí al panda</b> (arrastralo rápido de un lado al otro), acá o en el panda flotante.</p>`);
+    $$("[data-lugar]").forEach((b) => b.addEventListener("click", () => { cerrarHoja(); hacer("llegue", b.dataset.lugar || null); }));
+  }
+  // Sacudir al panda con el dedo (izquierda-derecha rápido) = "¡Llegué!"
+  function prepararSacudida() {
+    const el = $("#escena-panda"); if (!el) return;
+    let ultX = null, dir = 0, giros = 0, desde = 0, hecho = false;
+    el.addEventListener("pointerdown", (e) => { ultX = e.clientX; dir = 0; giros = 0; hecho = false; });
+    el.addEventListener("pointermove", (e) => {
+      if (ultX == null || modo === "banio" || hecho) return;
+      const d = e.clientX - ultX;
+      if (Math.abs(d) < 14) return;
+      const nd = d > 0 ? 1 : -1, ahora = Date.now();
+      if (dir && nd !== dir) {
+        if (!giros || ahora - desde > 1600) { giros = 0; desde = ahora; }
+        if (++giros >= 4) {
+          hecho = true; ultimaSacudida = Date.now(); panda.reaccion("sorpresa");
+          if (E.otro && !E.mascota.se_fue) hacer("llegue", null); else aviso("Primero tu pareja se tiene que unir");
+        }
+      }
+      dir = nd; ultX = e.clientX;
+    });
+    const fin = () => { ultX = null; };
+    el.addEventListener("pointerup", fin); el.addEventListener("pointercancel", fin);
   }
 
   // ---------- ALERTA EN BROMA 🚨 ("¿estás con otra mujer / otro hombre?") ----------

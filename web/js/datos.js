@@ -196,12 +196,12 @@
       const yo = quien === YO ? db.yo : db.otro;
       const ahora = Date.now(), iso = () => new Date().toISOString();
       const permitidas = ["comida", "caricia", "frase", "mensaje", "necesito_amor", "pedir_ubicacion",
-        "banio", "dormir", "despertar", "comer", "juego", "sentir", "pregunta", "foto", "alerta"];
+        "banio", "dormir", "despertar", "comer", "juego", "sentir", "pregunta", "foto", "alerta", "llegue"];
       if (!permitidas.includes(tipo)) throw new Error("Acción desconocida: " + tipo);
       texto = texto == null ? null : String(texto).trim() || null;
       if (["frase", "mensaje", "sentir", "pregunta", "comer", "juego"].includes(tipo) && !texto) throw new Error("Falta el texto");
       if (tipo === "alerta" && !["mujer", "hombre"].includes(texto)) throw new Error("Alerta inválida");
-      if (m.se_fue && !["mensaje", "frase", "sentir", "necesito_amor", "pedir_ubicacion", "foto", "pregunta", "alerta"].includes(tipo)) throw new Error("Tu panda se fue 🎒 Adopten uno nuevo");
+      if (m.se_fue && !["mensaje", "frase", "sentir", "necesito_amor", "pedir_ubicacion", "foto", "pregunta", "alerta", "llegue"].includes(tipo)) throw new Error("Tu panda se fue 🎒 Adopten uno nuevo");
       const en = R.energia(m);
       if (m.durmiendo && ["comida", "comer", "banio", "juego"].includes(tipo)) throw new Error("Shh… está durmiendo 😴 Despertalo primero");
       if (yo.dia !== d) { yo.caricias_hoy = 0; yo.mensajes_hoy = 0; yo.juegos_hoy = 0; yo.sentir_hoy = 0; yo.dia = d; }
@@ -401,6 +401,7 @@
       if (tipo === "necesito_amor" || tipo === "pedir_ubicacion") this.agregarEvento(OTRO, tipo, null);
       else if (tipo === "sentir") this.accion("sentir", "😢 Estoy triste · hoy fue un día difícil", OTRO);
       else if (tipo === "alerta") this.accion("alerta", Math.random() < 0.5 ? "mujer" : "hombre", OTRO);
+      else if (tipo === "llegue") this.accion("llegue", "a casa", OTRO);
       else if (tipo === "foto") {
         // una "foto" dibujada, para probar
         const c = document.createElement("canvas"); c.width = 320; c.height = 240;

@@ -54,6 +54,8 @@ class Puente(
     @JavascriptInterface fun hablarCelular(texto: String, tono: Double, id: String) {
         VozCelular.hablar(ctx, texto, tono.toFloat(), id) { tipo -> js("window.__vozEvento && window.__vozEvento(${q(id)}, ${q(tipo)})") }
     }
+    @JavascriptInterface fun vocesCelular(): String { VozCelular.precargar(ctx); return VozCelular.voces() }
+    @JavascriptInterface fun elegirVozCelular(nombre: String) = VozCelular.elegir(ctx, nombre)
     @JavascriptInterface fun ajustesVozCelular() {
         try { abrir(Intent("com.android.settings.TTS_SETTINGS")) } catch (_: Exception) {}
     }

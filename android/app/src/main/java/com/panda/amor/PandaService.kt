@@ -292,6 +292,8 @@ class CapaToque(private val servicio: PandaService, private val avisar: (String)
     private var arrastrando = false
     private var largoHecho = false
     private var toques = 0
+    // sacudir (arrastrarlo izquierda-derecha rápido) = "¡Llegué, amor!"
+    private var ultX = 0f; private var dirX = 0; private var giros = 0; private var desdeGiro = 0L; private var sacudido = false
     private val largo = Runnable { largoHecho = true; avisar("largo") }
     // Cuenta los toques seguidos: 1 = mimos, 2 = abrir la app, 3 o más = quedarse quieto / volver a pasear
     private val resolverToques = Runnable {
@@ -306,6 +308,7 @@ class CapaToque(private val servicio: PandaService, private val avisar: (String)
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 abajoX = e.rawX; abajoY = e.rawY
+                ultX = e.rawX; dirX = 0; giros = 0; sacudido = false
                 ventanaX = servicio.xActual; ventanaY = servicio.yActual
                 arrastrando = false; largoHecho = false
                 h.postDelayed(largo, 600)
@@ -315,7 +318,20 @@ class CapaToque(private val servicio: PandaService, private val avisar: (String)
                 if (!arrastrando && (abs(dx) > umbral || abs(dy) > umbral) && !largoHecho) {
                     arrastrando = true; h.removeCallbacks(largo); avisar("arrastre_inicio")
                 }
-                if (arrastrando) servicio.arrastrar(dx.roundToInt(), dy.roundToInt(), ventanaX, ventanaY)
+                if (arrastrando) {
+                    servicio.arrastrar(dx.roundToInt(), dy.roundToInt(), ventanaX, ventanaY)
+                    val d = e.rawX - ultX
+                    if (abs(d) > umbral * 2) {
+                        val nd = if (d > 0) 1 else -1
+                        val ahora = System.currentTimeMillis()
+                        if (dirX != 0 && nd != dirX) {
+                            if (giros == 0 || ahora - desdeGiro > 1600) { giros = 0; desdeGiro = ahora }
+                            giros++
+                            if (giros >= 4 && !sacudido) { sacudido = true; avisar("sacudir") }
+                        }
+                        dirX = nd; ultX = e.rawX
+                    }
+                }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 h.removeCallbacks(largo)

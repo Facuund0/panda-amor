@@ -120,7 +120,7 @@ alter table public.mascotas  add column if not exists preguntas_previas text[] n
 alter table public.eventos drop constraint if exists eventos_tipo_check;
 alter table public.eventos add constraint eventos_tipo_check check (tipo in
   ('comida','caricia','frase','mensaje','necesito_amor','pedir_ubicacion','ubicacion','sistema',
-   'banio','dormir','despertar','comer','juego','sentir','pregunta','foto','compra','desafio','alerta'));
+   'banio','dormir','despertar','comer','juego','sentir','pregunta','foto','compra','desafio','alerta','llegue'));
 
 -- Fotos que se mandan (comprimidas en el celular, ~100 KB). Se borran a los 120 días salvo las guardadas con 💖.
 create table if not exists public.fotos (
@@ -327,7 +327,7 @@ begin
   select * into yo from public.miembros where user_id = auth.uid() for update;
   if not found then raise exception 'No estás en una pareja'; end if;
   if tipo_accion not in ('comida','caricia','frase','mensaje','necesito_amor','pedir_ubicacion',
-                         'banio','dormir','despertar','comer','juego','sentir','pregunta','foto','alerta') then
+                         'banio','dormir','despertar','comer','juego','sentir','pregunta','foto','alerta','llegue') then
     raise exception 'Acción desconocida: %', tipo_accion;
   end if;
   if tipo_accion in ('frase','mensaje','sentir','pregunta','comer','juego') and texto_ev is null then
@@ -336,9 +336,11 @@ begin
   if tipo_accion = 'foto' and ref_foto is null then raise exception 'Las fotos se mandan con enviar_foto'; end if;
   -- alerta en broma: "¿estás con otra mujer?" / "¿estás con otro hombre?" (no suma amor)
   if tipo_accion = 'alerta' and coalesce(texto_ev, '') not in ('mujer', 'hombre') then raise exception 'Alerta inválida'; end if;
+  -- "¡Llegué, amor!": el texto es el lugar (opcional, ej. "a casa")
+  if tipo_accion = 'llegue' then texto_ev := left(texto_ev, 40); end if;
 
   select * into m from public.mascotas where pareja_id = yo.pareja_id for update;
-  if m.se_fue is not null and tipo_accion not in ('mensaje','frase','sentir','necesito_amor','pedir_ubicacion','foto','pregunta','alerta') then
+  if m.se_fue is not null and tipo_accion not in ('mensaje','frase','sentir','necesito_amor','pedir_ubicacion','foto','pregunta','alerta','llegue') then
     raise exception 'Tu panda se fue 🎒 Adopten uno nuevo';
   end if;
   en := public.energia_actual(m.energia_base, m.energia_desde, m.durmiendo);
@@ -996,7 +998,7 @@ declare
   quien text; panda text; titulo text; cuerpo text; tipo_aviso text := new.tipo; tokens jsonb;
   txt text := coalesce(new.texto, '');
 begin
-  if new.tipo not in ('necesito_amor','pedir_ubicacion','mensaje','frase','ubicacion','sentir','foto','pregunta','sistema','alerta') then return new; end if;
+  if new.tipo not in ('necesito_amor','pedir_ubicacion','mensaje','frase','ubicacion','sentir','foto','pregunta','sistema','alerta','llegue') then return new; end if;
   if new.tipo = 'sistema' and txt not like 'aviso_abandono|%' and txt not like 'se_fue|%' then return new; end if;
 
   -- a quién: la otra persona (en los avisos del sistema, a los dos)
@@ -1016,6 +1018,9 @@ begin
   elsif new.tipo = 'frase' then titulo := '💌 Frase de ' || quien; cuerpo := txt;
   elsif new.tipo = 'ubicacion' and txt = 'en_vivo' then titulo := '📡 ' || quien || ' comparte su ubicación en vivo'; cuerpo := 'Tocá para ver dónde está ahora';
   elsif new.tipo = 'ubicacion' then titulo := '📍 ' || quien || ' compartió dónde está'; cuerpo := 'Tocá para verlo en el mapa';
+  elsif new.tipo = 'llegue' then
+    titulo := case when txt like 'a casa%' then '🏠 ' else '📍 ' end || quien || ' llegó' || case when txt <> '' then ' ' || txt else ' bien' end;
+    cuerpo := '¡Llegué, amor! 💗';
   elsif new.tipo = 'alerta' then
     titulo := '🚨 ¡ALERTA! 🚨';
     cuerpo := quien || ' quiere saber: ¿estás con ' || case when txt = 'hombre' then 'otro hombre' else 'otra mujer' end || '? 🤨';

@@ -77,7 +77,7 @@ object Avisos {
         val accion = when (tipo) {
             "necesito_amor" -> "necesito_amor"
             "pedir_ubicacion" -> "pregunta_ubicacion"
-            "mensaje", "frase", "foto", "pregunta" -> "mensajes"
+            "mensaje", "frase", "foto", "pregunta", "llegue" -> "mensajes"
             "sentir" -> "sentir"
             "ubicacion" -> "ver_ubicacion"
             "alerta" -> "alerta"

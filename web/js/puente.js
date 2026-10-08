@@ -33,6 +33,9 @@
 
   const Puente = {
     esAndroid: () => !!A(),
+    // Voces en castellano del celular (app 1.30+): [{nombre, idioma, calidad, internet, actual, predeterminada}]
+    vocesCelular() { try { return A()?.vocesCelular ? JSON.parse(A().vocesCelular() || "[]") : []; } catch { return []; } },
+    elegirVozCelular(nombre) { try { A()?.elegirVozCelular?.(nombre || ""); } catch {} },
     // Ubicación en vivo (app Android 1.29+): el celular manda su ubicación aunque la app esté cerrada
     vivoDisponible() { try { return !!A()?.iniciarVivo; } catch { return false; } },
     iniciarVivo(url, key, clave, pareja) { try { return !!A().iniciarVivo(url, key, clave, pareja); } catch { return false; } },

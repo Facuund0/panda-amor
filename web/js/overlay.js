@@ -166,6 +166,14 @@
     if (tipo === "arrastre_inicio") { panda.colgando(true); return; }
     if (tipo === "arrastre_fin") { panda.colgando(false); return; }
     if (tipo === "doble") return P.abrirApp("");
+    if (tipo === "sacudir") {
+      // sacudirlo = "¡Llegué, amor!"
+      if (!E.otro || E.mascota.se_fue) return decir("¡Uy, me mareé! 😵");
+      panda.reaccion("sorpresa"); P.vibrar("caricia");
+      try { await D.accion("llegue", null); decir(`¡Uy, me mareé! Ya le avisé a ${nombres().otro} que llegaste 💗`); }
+      catch { decir("No pude avisarle, ¿hay internet?"); }
+      return;
+    }
     if (tipo === "triple") {
       // 3 toques: se queda fijo donde está (o vuelve a pasear)
       const q = !P.quieto();
@@ -226,10 +234,11 @@
     let texto = F.deOtro(ev.tipo, n);
     const sent = ev.tipo === "sentir" ? F.SENTIMIENTOS.find((x) => String(ev.texto).startsWith(x.emoji)) : null;
     if (sent) texto = (F.RESPUESTA_SENTIR[sent.id] || texto).replace(/\{otro\}/g, n.otro);
+    if (ev.tipo === "llegue") texto = `¡${n.otro} llegó ${ev.texto || "bien"}! Qué alivio.`;
     if (ev.tipo === "alerta") texto = F.deOtro(ev.texto === "hombre" ? "alerta_hombre" : "alerta_mujer", n);
     if (ev.tipo === "ubicacion" && ev.texto === "en_vivo") texto = F.deOtro("ubicacion_vivo", n);
     // si llegan las push, la notificación y la vibración las hace Firebase (no repetir)
-    const conPush = P.pushActivo() && ["necesito_amor", "pedir_ubicacion", "mensaje", "frase", "ubicacion", "sentir", "foto", "pregunta", "alerta"].includes(ev.tipo);
+    const conPush = P.pushActivo() && ["necesito_amor", "pedir_ubicacion", "mensaje", "frase", "ubicacion", "sentir", "foto", "pregunta", "alerta", "llegue"].includes(ev.tipo);
     if (!conPush) P.vibrar(ev.tipo);
     // notificación del sistema (la app nativa la omite si la app principal está abierta)
     const titulos = {
@@ -237,17 +246,18 @@
       mensaje: `💬 ${n.otro}`, frase: `💌 Frase de ${n.otro}`, caricia: `🤗 ${n.otro} le hizo mimos a ${n.panda}`,
       comida: `🎋 ${n.otro} le dio bambú a ${n.panda}`, ubicacion: `📍 ${n.otro} compartió su ubicación`,
       sentir: `💭 ${n.otro}: ${sent ? sent.texto : "cómo se siente"}`, foto: `📸 ${n.otro} te mandó una foto`,
-      pregunta: `❓ ${n.otro} respondió la pregunta del día`, alerta: "🚨 ¡ALERTA! 🚨",
+      pregunta: `❓ ${n.otro} respondió la pregunta del día`, alerta: "🚨 ¡ALERTA! 🚨", llegue: `🏠 ${n.otro} llegó ${ev.texto || "bien"}`,
     };
     const cuerpo = { necesito_amor: "Tocá para mandarle mimos", pedir_ubicacion: "Tocá para compartir tu ubicación", mensaje: ev.texto, frase: ev.texto,
       sentir: String(ev.texto || "").split(" · ").slice(1).join(" · ") || "Tocá para responderle", foto: ev.texto && ev.texto !== "📸" ? ev.texto : "Tocá para verla", pregunta: "Respondé para ver qué puso",
+      llegue: "¡Llegué, amor! 💗",
       alerta: `${n.otro} quiere saber: ¿estás con ${ev.texto === "hombre" ? "otro hombre" : "otra mujer"}? 🤨` };
-    if (["necesito_amor", "pedir_ubicacion", "mensaje", "frase", "ubicacion", "sentir", "foto", "pregunta", "alerta"].includes(ev.tipo) && !(ev.tipo === "pedir_ubicacion" && E.yo.compartir_auto)) {
+    if (["necesito_amor", "pedir_ubicacion", "mensaje", "frase", "ubicacion", "sentir", "foto", "pregunta", "alerta", "llegue"].includes(ev.tipo) && !(ev.tipo === "pedir_ubicacion" && E.yo.compartir_auto)) {
       if (!conPush) P.notificar(titulos[ev.tipo], cuerpo[ev.tipo] || "", ev.tipo);
     }
     // reacción del panda
     const reac = { caricia: "caricia", comida: "comida", comer: "comida", frase: "amor", necesito_amor: "necesita", mensaje: "sorpresa",
-      banio: "amor", juego: "amor", foto: "sorpresa", alerta: "necesita", despertar: "saludo", sentir: sent && F.TRISTES.includes(sent.id) ? "triste" : "amor" }[ev.tipo];
+      banio: "amor", juego: "amor", foto: "sorpresa", alerta: "necesita", llegue: "amor", despertar: "saludo", sentir: sent && F.TRISTES.includes(sent.id) ? "triste" : "amor" }[ev.tipo];
     if (reac) panda.reaccion(reac);
     if (ev.tipo === "pedir_ubicacion" && E.yo.compartir_auto) {
       try {
@@ -266,8 +276,10 @@
     document.body.classList.add("simulado");
     const v = $("#ventana");
     let abajo = null, movio = false, tLargo, toques = 0, tTap;
+    let ultX = null, dirX = 0, giros = 0, desde = 0, sacudido = false;
     v.addEventListener("pointerdown", (e) => {
       abajo = { x: e.clientX, y: e.clientY, vx: ventanaSim.x, vy: ventanaSim.y }; movio = false;
+      ultX = e.clientX; dirX = 0; giros = 0; sacudido = false;
       v.setPointerCapture(e.pointerId);
       tLargo = setTimeout(() => { if (!movio) { abajo = null; window.pandaToque("largo"); } }, 600);
     });
@@ -276,6 +288,17 @@
       const dx = e.clientX - abajo.x, dy = e.clientY - abajo.y;
       if (!movio && Math.hypot(dx, dy) > 10) { movio = true; clearTimeout(tLargo); window.pandaToque("arrastre_inicio"); }
       if (movio) { ventanaSim.x = abajo.vx + dx; ventanaSim.y = abajo.vy + dy; aplicarSim(0); }
+      // sacudir (izquierda-derecha rápido) = "¡Llegué!"
+      if (ultX == null) ultX = e.clientX;
+      const d = e.clientX - ultX;
+      if (Math.abs(d) >= 14) {
+        const nd = d > 0 ? 1 : -1, ahora = Date.now();
+        if (dirX && nd !== dirX) {
+          if (!giros || ahora - desde > 1600) { giros = 0; desde = ahora; }
+          if (++giros >= 4 && !sacudido) { sacudido = true; window.pandaToque("sacudir"); }
+        }
+        dirX = nd; ultX = e.clientX;
+      }
     });
     v.addEventListener("pointerup", () => {
       clearTimeout(tLargo);
