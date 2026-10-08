@@ -38,7 +38,7 @@ jobs:
       - name: Mostrar el error (si falló)
         if: failure()
         run: |
-          grep -E "^e: |What went wrong|^> |error:" -A2 compilacion.log | head -40 | while IFS= read -r l; do echo "::error::$l"; done
+          { grep -A12 "What went wrong" compilacion.log | head -30; grep -E "^e: " compilacion.log | head -20; } | while IFS= read -r l; do echo "::error::$l"; done
 
       - uses: actions/upload-artifact@v4
         with:
