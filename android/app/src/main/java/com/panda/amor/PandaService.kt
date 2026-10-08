@@ -40,7 +40,8 @@ class PandaService : Service() {
         fun iniciar(ctx: Context, desdeApp: Boolean) {
             if (!Settings.canDrawOverlays(ctx)) return
             val i = Intent(ctx, PandaService::class.java).putExtra("desde_app", desdeApp)
-            ctx.startForegroundService(i)
+            // Android 12+ no deja arrancarlo desde segundo plano: en ese caso no hace nada
+            try { ctx.startForegroundService(i) } catch (_: Exception) {}
         }
 
         fun detener(ctx: Context) {
@@ -70,17 +71,27 @@ class PandaService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val desdeApp = intent?.getBooleanExtra("desde_app", false) ?: false
-        val noti = Avisos.notificacionFija(this)
-        if (Build.VERSION.SDK_INT >= 34) {
-            var tipos = ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-            if (desdeApp && Ubicacion.tienePermiso(this)) tipos = tipos or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
-            startForeground(Avisos.ID_FIJA, noti, tipos)
-        } else {
-            startForeground(Avisos.ID_FIJA, noti)
+        try {
+            val noti = Avisos.notificacionFija(this)
+            if (Build.VERSION.SDK_INT >= 34) {
+                // Solo "uso especial": el tipo "ubicación" en Android 14+ cierra la app si falta algún permiso.
+                // La ubicación se pide con la app abierta, así que no lo necesita.
+                startForeground(Avisos.ID_FIJA, noti, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            } else {
+                startForeground(Avisos.ID_FIJA, noti)
+            }
+        } catch (e: Exception) {
+            // Android no dejó mostrar el panda ahora (por ej. arrancó en segundo plano): se apaga sin romper nada
+            stopSelf(); return START_NOT_STICKY
         }
-        if (!::capa.isInitialized) crearVentana()
+        if (!::capa.isInitialized) {
+            try { crearVentana() } catch (e: Exception) {
+                Fallos.guardar(this, "panda flotante", e); stopSelf(); return START_NOT_STICKY
+            }
+        }
         ocultar(MainActivity.enPrimerPlano)
-        return START_STICKY
+        // NOT_STICKY: si Android lo cierra, vuelve al abrir la app (evita cierres en bucle en Samsung)
+        return START_NOT_STICKY
     }
 
     @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
@@ -132,7 +143,7 @@ class PandaService : Service() {
     }
 
     fun pantallaJson(): String { val m = medidas(); return "{\"w\":${aDp(m.widthPixels)},\"h\":${aDp(m.heightPixels)}}" }
-    fun posicionJson(): String = "{\"x\":${aDp(lp.x)},\"y\":${aDp(lp.y)}}"
+    fun posicionJson(): String = if (!::lp.isInitialized) "{\"x\":0,\"y\":0}" else "{\"x\":${aDp(lp.x)},\"y\":${aDp(lp.y)}}"
 
     private fun limitar() {
         val m = medidas()
@@ -143,6 +154,7 @@ class PandaService : Service() {
     private fun actualizar() { try { wm.updateViewLayout(capa, lp) } catch (_: Exception) {} }
 
     fun moverA(xDp: Int, yDp: Int, ms: Int) = principal.post {
+        if (!::capa.isInitialized) return@post
         animacion?.cancel()
         val x0 = lp.x; val y0 = lp.y
         val x1 = dp(xDp); val y1 = dp(yDp)
@@ -160,12 +172,14 @@ class PandaService : Service() {
     }
 
     fun tamano(wDp: Int, hDp: Int, xDp: Int, yDp: Int) = principal.post {
+        if (!::capa.isInitialized) return@post
         animacion?.cancel()
         lp.width = dp(wDp); lp.height = dp(hDp); lp.x = dp(xDp); lp.y = dp(yDp)
         limitar(); actualizar()
     }
 
     fun arrastrar(dx: Int, dy: Int, x0: Int, y0: Int) {
+        if (!::capa.isInitialized) return
         animacion?.cancel()
         lp.x = x0 + dx; lp.y = y0 + dy
         limitar(); actualizar()
@@ -179,7 +193,7 @@ class PandaService : Service() {
         animacion?.cancel()
         if (::capa.isInitialized) {
             try { wm.removeView(capa) } catch (_: Exception) {}
-            web.destroy()
+            try { web.destroy() } catch (_: Exception) {}
         }
         super.onDestroy()
     }

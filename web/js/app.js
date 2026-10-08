@@ -574,6 +574,7 @@
         const s = Voz.estadoPiper();
         if (s === "lista") el.innerHTML = "✅ Voz de Daniela instalada (funciona sin internet)";
         else if (s.startsWith("descargando")) { el.textContent = `⬇️ Descargando la voz… ${s.split(":")[1] || 0}%`; setTimeout(pintarPiper, 1000); }
+        else if (s.startsWith("error:")) { el.innerHTML = `⚠️ ${s.slice(6)} <button class="btn btn-chico" id="a-bajar">Volver a probar</button>`; $("#a-bajar").onclick = () => { Voz.descargarPiper(); setTimeout(pintarPiper, 500); }; }
         else { el.innerHTML = `La voz real pesa unos 115 MB y se descarga una sola vez. <button class="btn btn-chico" id="a-bajar">Descargar</button>`; $("#a-bajar").onclick = () => { Voz.descargarPiper(); setTimeout(pintarPiper, 500); }; }
       };
       pintarPiper();

@@ -53,7 +53,27 @@ class MainActivity : Activity() {
         web.addJavascriptInterface(Puente(this, web, actividad = this), "AndroidPanda")
         setContentView(web)
 
+        val error = Fallos.tomar(this)
+        if (error != null) {
+            // Modo seguro: se cerró por un error. Se apaga el panda flotante y se muestra qué pasó.
+            Config.guardarFlotante(this, false)
+            PandaService.detener(this)
+            mostrarError(error)
+        }
         if (Config.urlConfigurada(this)) cargar(intent) else pedirUrl()
+    }
+
+    private fun mostrarError(texto: String) {
+        val portapapeles = getSystemService(android.content.ClipboardManager::class.java)
+        AlertDialog.Builder(this)
+            .setTitle("La app se cerró 😢")
+            .setMessage("Apagué el panda flotante para que no vuelva a pasar. Si querés que lo arreglen, copiá el error y mandáselo a quien programa la app.\n\n" + texto.take(1500))
+            .setPositiveButton("Copiar error") { _, _ ->
+                portapapeles.setPrimaryClip(android.content.ClipData.newPlainText("error panda", texto))
+                android.widget.Toast.makeText(this, "Error copiado", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cerrar", null)
+            .show()
     }
 
     private fun cargar(i: Intent?) {

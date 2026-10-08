@@ -44,6 +44,7 @@ object VozPanda {
 
     /** "lista" | "falta" | "descargando:NN" | "error:..." */
     fun estado(ctx: Context): String = when {
+        Config.vozDesactivada(ctx) && !descargando && lista(ctx) -> "error:La voz real hizo cerrar la app en este celular. Se usa la del celular."
         descargando -> "descargando:$progreso"
         lista(ctx) -> "lista"
         error != null -> "falta"
@@ -51,6 +52,7 @@ object VozPanda {
     }
 
     fun descargar(ctx: Context) {
+        Config.guardarVozDesactivada(ctx, false) // "volver a probar"
         if (descargando || lista(ctx)) return
         descargando = true; progreso = 0; error = null
         val app = ctx.applicationContext
@@ -140,10 +142,21 @@ object VozPanda {
         val mio = ++token
         try { pistaActual?.pause(); pistaActual?.flush() } catch (_: Exception) {}
         val app = ctx.applicationContext
+        if (Config.vozDesactivada(app)) { evento("error"); return }
         cola.execute {
-            if (mio != token) { evento("fin"); return@execute }
+            // Todo adentro de try: un error acá (hilo aparte) cerraba la app entera
+            Fallos.empiezaVoz(app)
+            try { hablarAhora(app, texto, tono, mio, evento) }
+            catch (e: Throwable) { try { evento("error") } catch (_: Throwable) {} }
+            finally { Fallos.terminaVoz(app) }
+        }
+    }
+
+    private fun hablarAhora(app: Context, texto: String, tono: Float, mio: Int, evento: (String) -> Unit) {
+        run {
+            if (mio != token) { evento("fin"); return }
             val t = motor(app)
-            if (t == null) { evento("error"); return@execute }
+            if (t == null) { evento("error"); return }
             val factor = tono.coerceIn(1f, 1.8f)
             val velocidad = 1.06f / factor            // se genera más lenta…
             val frecuencia = (t.sampleRate() * factor).toInt() // …y se reproduce más rápido
@@ -161,6 +174,7 @@ object VozPanda {
                 pista.play()
                 t.generateWithCallback(texto, 0, velocidad) { muestras ->
                     if (mio != token) return@generateWithCallback 0
+                    if (muestras.isEmpty()) return@generateWithCallback 1
                     if (!empezo) { empezo = true; evento("inicio") }
                     pista.write(muestras, 0, muestras.size, AudioTrack.WRITE_BLOCKING)
                     escritas += muestras.size

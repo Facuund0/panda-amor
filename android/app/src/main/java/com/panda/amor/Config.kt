@@ -29,4 +29,8 @@ object Config {
     fun guardarFlotante(ctx: Context, encendido: Boolean) {
         prefs(ctx).edit().putBoolean("flotante", encendido).apply()
     }
+
+    /** Si la voz Piper hizo cerrar la app, queda apagada (se puede volver a probar desde Ajustes). */
+    fun vozDesactivada(ctx: Context): Boolean = prefs(ctx).getBoolean("voz_off", false)
+    fun guardarVozDesactivada(ctx: Context, off: Boolean) { prefs(ctx).edit().putBoolean("voz_off", off).commit() }
 }
