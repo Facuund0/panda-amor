@@ -44,7 +44,7 @@ object VozPanda {
 
     /** "lista" | "falta" | "descargando:NN" | "error:..." */
     fun estado(ctx: Context): String = when {
-        Config.vozDesactivada(ctx) && !descargando && lista(ctx) -> "error:La voz real hizo cerrar la app en este celular. Se usa la del celular."
+        Config.vozDesactivada(ctx) && !descargando && lista(ctx) -> "error:La voz de Daniela falló en este celular, así que se usa la voz del celular."
         descargando -> "descargando:$progreso"
         lista(ctx) -> "lista"
         error != null -> "falta"
@@ -137,18 +137,16 @@ object VozPanda {
         try { pistaActual?.pause(); pistaActual?.flush() } catch (_: Exception) {}
     }
 
-    /** evento(tipo): "inicio" | "fin" | "error" */
+    /** OJO: esto corre en el proceso ":voz" (VozService). La app lo llama con VozCliente.
+     *  evento(tipo): "inicio" | "fin" | "error" */
     fun hablar(ctx: Context, texto: String, tono: Float, evento: (String) -> Unit) {
         val mio = ++token
         try { pistaActual?.pause(); pistaActual?.flush() } catch (_: Exception) {}
         val app = ctx.applicationContext
-        if (Config.vozDesactivada(app)) { evento("error"); return }
         cola.execute {
-            // Todo adentro de try: un error acá (hilo aparte) cerraba la app entera
-            Fallos.empiezaVoz(app)
+            // Todo adentro de try: un error acá (hilo aparte) cerraba el proceso
             try { hablarAhora(app, texto, tono, mio, evento) }
             catch (e: Throwable) { try { evento("error") } catch (_: Throwable) {} }
-            finally { Fallos.terminaVoz(app) }
         }
     }
 

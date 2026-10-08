@@ -1,8 +1,10 @@
 // =============================================================
 //  LA VOZ DEL PANDA
-//  Tres motores:
+//  Motores:
 //   · "piper"     → voz real de Daniela (Argentina), sin internet ni límites.
-//                   La genera la app Android (sherpa-onnx). Tono de nene ajustable.
+//                   La genera la app Android (sherpa-onnx, en un proceso aparte).
+//                   Si no está o falla, se usa "celular".
+//   · "celular"   → motor de voz de Android (Google/Samsung) con tono de nene. Muy estable.
 //   · "mascota"   → idioma de mascota: sonidos tiernos al ritmo del texto.
 //   · "navegador" → voz del navegador con tono agudo (respaldo).
 //  En la web (sin la app Android) se usa "mascota" por defecto.
@@ -105,6 +107,26 @@
     });
   }
 
+  // Le pide a la app Android que hable (metodo: "hablar" = Daniela, "hablarCelular" = voz del celular).
+  // Si falla, ejecuta "respaldo".
+  function hablarAndroid(metodo, limpio, tono, cb, respaldo) {
+    return new Promise((ok) => {
+      const id = String(++contador);
+      const seguro = setTimeout(() => window.__vozEvento(id, "error"), 30000);
+      let boca; // la app no manda el volumen: la boca se mueve sola mientras habla
+      callbacks.set(id, {
+        ...cb,
+        alInicio: () => { cb.alInicio?.(); boca = setInterval(() => cb.alNivel?.(0.25 + Math.random() * 0.75), 110); },
+        terminar: (tipo) => {
+          clearTimeout(seguro); clearInterval(boca);
+          cb.alNivel?.(0);
+          if (tipo === "error") respaldo().then(ok); else ok();
+        },
+      });
+      try { A()[metodo](limpio, tono, id); } catch { window.__vozEvento(id, "error"); }
+    });
+  }
+
   const Voz = {
     get motor() { return leer("panda-voz-motor", A() ? "piper" : "mascota"); },
     set motor(v) { guardar("panda-voz-motor", v); },
@@ -119,6 +141,11 @@
       try { return A() ? A().estadoVoz() : "no-disponible"; } catch { return "no-disponible"; }
     },
     descargarPiper() { try { A()?.descargarVoz(); } catch {} },
+    // "lista" | "cargando" | "sin-voz" | "no-disponible" (también la "despierta" para que la 1.ª frase no tarde)
+    estadoCelular() {
+      try { return A()?.estadoVozCelular ? A().estadoVozCelular() : "no-disponible"; } catch { return "no-disponible"; }
+    },
+    ajustesCelular() { try { A()?.ajustesVozCelular(); } catch {} },
 
     detener() {
       try { A()?.callar(); } catch {}
@@ -133,22 +160,13 @@
       if (!limpio || !this.activa) { cb.alInicio?.(); return Promise.resolve(); }
       audio(); // "despierta" el audio con el gesto del usuario
       const motor = this.motor, tono = this.tono;
-      if (motor === "piper" && A() && this.estadoPiper() === "lista") {
-        return new Promise((ok) => {
-          const id = String(++contador);
-          const seguro = setTimeout(() => window.__vozEvento(id, "error"), 30000);
-          let boca; // la app no manda el volumen: la boca se mueve sola mientras habla
-          callbacks.set(id, {
-            ...cb,
-            alInicio: () => { cb.alInicio?.(); boca = setInterval(() => cb.alNivel?.(0.25 + Math.random() * 0.75), 110); },
-            terminar: (tipo) => {
-              clearTimeout(seguro); clearInterval(boca);
-              cb.alNivel?.(0);
-              if (tipo === "error") balbucear(limpio, tono, cb).then(ok); else ok();
-            },
-          });
-          try { A().hablar(limpio, tono, id); } catch { window.__vozEvento(id, "error"); }
-        });
+      if (A()) {
+        // En la app Android: Daniela → voz del celular → idioma panda (cada una es respaldo de la anterior)
+        const conCelular = () => this.estadoCelular() === "sin-voz"
+          ? balbucear(limpio, tono, cb)
+          : hablarAndroid("hablarCelular", limpio, tono, cb, () => balbucear(limpio, tono, cb));
+        if (motor === "piper" && this.estadoPiper() === "lista") return hablarAndroid("hablar", limpio, tono, cb, conCelular);
+        if (motor === "piper" || motor === "celular") return conCelular();
       }
       if (motor === "navegador") return vozNavegador(limpio, tono, cb);
       return balbucear(limpio, tono, cb);

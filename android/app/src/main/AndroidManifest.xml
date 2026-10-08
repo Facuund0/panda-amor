@@ -2,6 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 11+: para poder usar el motor de voz del celular -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Panda flotante sobre otras apps -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
@@ -44,6 +50,12 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Mascota virtual que camina sobre la pantalla y avisa a la pareja" />
         </service>
+
+        <!-- La voz de Daniela en un proceso aparte: si el motor falla, no se cierra la app -->
+        <service
+            android:name=".VozService"
+            android:exported="false"
+            android:process=":voz" />
 
         <receiver
             android:name=".ArranqueReceiver"

@@ -503,11 +503,13 @@
 
       <div class="tarjeta"><h3>🔊 Voz de ${esc(nombres().panda)}</h3>
         <div class="segmentos" id="a-motor">
-          ${android ? `<button data-motor="piper" class="${motor === "piper" ? "activo" : ""}">Voz real</button>` : ""}
+          ${android ? `<button data-motor="piper" class="${motor === "piper" ? "activo" : ""}">Daniela</button>
+          <button data-motor="celular" class="${motor === "celular" ? "activo" : ""}">Voz del celu</button>` : ""}
           <button data-motor="mascota" class="${motor === "mascota" ? "activo" : ""}">Idioma panda</button>
-          <button data-motor="navegador" class="${motor === "navegador" ? "activo" : ""}">Navegador</button>
+          ${android ? "" : `<button data-motor="navegador" class="${motor === "navegador" ? "activo" : ""}">Navegador</button>`}
         </div>
-        ${android ? `<p class="nota" id="a-piper" style="margin-top:8px"></p>` : `<p class="nota" style="margin-top:8px">La voz real (Daniela, sin internet) funciona en la app Android.</p>`}
+        ${android ? `<p class="nota" id="a-piper" style="margin-top:8px"></p>
+          <p class="nota">Si Daniela no está o falla, habla con la voz del celu. <button class="btn btn-chico" id="a-tts">Cambiar voz del celu</button></p>` : `<p class="nota" style="margin-top:8px">La voz real (Daniela, sin internet) funciona en la app Android.</p>`}
         <div class="fila"><div style="flex:1">Tono de nene<div class="desc">Más a la derecha = más agudo y tierno</div>
           <input type="range" id="a-tono" min="1" max="1.7" step="0.05" value="${Voz.tono}"></div></div>
         <div class="fila"><div>Voz activada</div><label class="interruptor"><input type="checkbox" id="a-voz" ${Voz.activa ? "checked" : ""}><span></span></label></div>
@@ -578,6 +580,7 @@
         else { el.innerHTML = `La voz real pesa unos 115 MB y se descarga una sola vez. <button class="btn btn-chico" id="a-bajar">Descargar</button>`; $("#a-bajar").onclick = () => { Voz.descargarPiper(); setTimeout(pintarPiper, 500); }; }
       };
       pintarPiper();
+      $("#a-tts")?.addEventListener("click", () => Voz.ajustesCelular());
     }
   }
 

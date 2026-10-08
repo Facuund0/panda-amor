@@ -45,9 +45,18 @@ class Puente(
     // ---------- voz Piper ----------
     @JavascriptInterface fun estadoVoz(): String = VozPanda.estado(ctx)
     @JavascriptInterface fun descargarVoz() = VozPanda.descargar(ctx)
-    @JavascriptInterface fun callar() = VozPanda.callar()
+    @JavascriptInterface fun callar() { VozCliente.callar(); VozCelular.callar() }
+    // Daniela (Piper): corre en otro proceso para que, si falla, no cierre la app
     @JavascriptInterface fun hablar(texto: String, tono: Double, id: String) {
-        VozPanda.hablar(ctx, texto, tono.toFloat()) { tipo -> js("window.__vozEvento && window.__vozEvento(${q(id)}, ${q(tipo)})") }
+        VozCliente.hablar(ctx, texto, tono.toFloat(), id) { tipo -> js("window.__vozEvento && window.__vozEvento(${q(id)}, ${q(tipo)})") }
+    }
+    // Voz del celular (motor de Android) con tono de nene
+    @JavascriptInterface fun estadoVozCelular(): String { VozCelular.precargar(ctx); return VozCelular.estado() }
+    @JavascriptInterface fun hablarCelular(texto: String, tono: Double, id: String) {
+        VozCelular.hablar(ctx, texto, tono.toFloat(), id) { tipo -> js("window.__vozEvento && window.__vozEvento(${q(id)}, ${q(tipo)})") }
+    }
+    @JavascriptInterface fun ajustesVozCelular() {
+        try { abrir(Intent("com.android.settings.TTS_SETTINGS")) } catch (_: Exception) {}
     }
 
     // ---------- ubicación ----------
