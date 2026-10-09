@@ -1465,6 +1465,7 @@
         ${c ? `<div class="pc-botones dos">
           <button class="btn btn-sec btn-chico" id="pc-pasar">🙈 Pasar</button>
           <button class="btn btn-sec btn-chico" id="pc-mandar">📲 Mandársela a ${esc(n.otro)}</button></div>` : ""}
+        <button class="btn btn-ancho" id="pc-juegos" style="margin-top:12px">🎲 Juegos para calentar (${globalThis.Juegos18.JUEGOS.length})</button>
         <button class="btn btn-sec btn-ancho btn-chico" id="pc-propias" style="margin-top:10px">✏️ Nuestras cartas (escriban las suyas)</button>
         <p class="nota" style="margin-top:10px">Siempre se puede pasar. Si algo no les copa, paren: palabra de seguridad <b>"panda"</b> 🐼</p>
       </div>`);
@@ -1479,6 +1480,7 @@
         pintar();
       }));
       $("#pc-propias").addEventListener("click", () => editarCartas(abrirPicante));
+      $("#pc-juegos").addEventListener("click", abrirJuegos18);
       $("#pc-pasar")?.addEventListener("click", () => { st.turno++; st.carta = null; pintar(); });
       $("#pc-mandar")?.addEventListener("click", async () => {
         try {
@@ -1488,6 +1490,119 @@
       });
     };
     pintar();
+  }
+
+  // ---------- Juegos +18 (dados, strip, temporizador, "¿lo probaríamos?", etc.) ----------
+  let relojJuego = null;
+  const pararReloj = () => { clearInterval(relojJuego); relojJuego = null; };
+  function abrirJuegos18() {
+    pararReloj();
+    const J = globalThis.Juegos18.JUEGOS;
+    const fila = (j) => `<button class="juego18" data-j="${j.id}"><span>${j.emoji}</span><b>${esc(j.nombre)}</b></button>`;
+    abrirHoja(`<div class="picante"><h2>🎲 Juegos para calentar</h2>
+      <p class="nota" style="margin-bottom:10px">Para ir subiendo de a poco. Siempre se puede pasar · palabra de seguridad "panda".</p>
+      <h3 class="sub18">En persona</h3><div class="juegos18">${J.filter((j) => !j.mandar).map(fila).join("")}</div>
+      <h3 class="sub18">Por mensaje / a distancia</h3><div class="juegos18">${J.filter((j) => j.mandar).map(fila).join("")}</div>
+      <button class="btn btn-sec btn-ancho btn-chico" id="j-volver" style="margin-top:12px">← Verdad o reto</button></div>`);
+    $$("[data-j]").forEach((b) => b.addEventListener("click", () => abrirJuego18(J.find((j) => j.id === b.dataset.j))));
+    $("#j-volver").addEventListener("click", abrirPicante);
+  }
+
+  function abrirJuego18(j) {
+    pararReloj();
+    const n = nombres(), az = globalThis.Juegos18.azar;
+    const base = (cuerpo) => `<div class="picante"><h2>${j.emoji} ${esc(j.nombre)}</h2>
+      <p class="nota j-como">${esc(j.como)}</p>${cuerpo}
+      <button class="btn btn-sec btn-ancho btn-chico" id="j-lista" style="margin-top:12px">← Todos los juegos</button></div>`;
+    const volver = () => $("#j-lista").addEventListener("click", abrirJuegos18);
+    const mandar = async (texto) => {
+      try { await D.accion("mensaje", `🔥 ${j.nombre}: ${texto}`.slice(0, 300)); aviso(`Se lo mandaste a ${n.otro} 😏`); } catch (e) { aviso(msjError(e)); }
+    };
+
+    if (j.tipo === "cartas" || j.tipo === "dados" || j.tipo === "frasco") {
+      const sacar = () => {
+        if (j.tipo === "dados") return j.dados.map(az).join(" · ");
+        if (j.tipo === "frasco") { const ps = globalThis.Picante.propias(); return ps.length ? az(ps).texto : null; }
+        return az(j.cartas);
+      };
+      const pintar = (t) => {
+        abrirHoja(base(t == null
+          ? `<div class="pc-carta vacia"><p>El frasco está vacío. Escriban sus deseos en "Nuestras cartas" 🫙</p></div>
+             <button class="btn btn-ancho" id="j-escribir" style="margin-top:10px">✏️ Escribir deseos</button>`
+          : `<div class="pc-carta reto ${j.tipo === "dados" ? "dados" : ""}"><span class="pc-tipo">${j.emoji} ${j.tipo === "dados" ? "SALIÓ" : "CARTA"}</span><p>${esc(t)}</p></div>
+             <div class="pc-botones dos"><button class="btn" id="j-otra">${j.tipo === "dados" ? "🎲 Tirar de nuevo" : "🔄 Otra"}</button>
+             <button class="btn btn-sec" id="j-mandar">📲 Mandársela</button></div>`));
+        $("#j-otra")?.addEventListener("click", () => { panda?.reaccion("amor"); pintar(sacar()); });
+        $("#j-mandar")?.addEventListener("click", () => mandar(t));
+        $("#j-escribir")?.addEventListener("click", () => editarCartas(abrirJuegos18));
+        volver();
+      };
+      return pintar(sacar());
+    }
+
+    if (j.tipo === "timer") {
+      const elegir = () => {
+        abrirHoja(base(`<p class="pc-turno">¿Cuánto tiempo?</p>
+          <div class="pc-botones">${j.minutos.map((m) => `<button class="btn" data-min="${m}">${m} min</button>`).join("")}</div>`));
+        $$("[data-min]").forEach((b) => b.addEventListener("click", () => correr(+b.dataset.min * 60)));
+        volver();
+      };
+      const correr = (total) => {
+        let resta = total, consigna = az(j.cartas);
+        abrirHoja(base(`<div class="reloj18" id="j-reloj"></div>
+          <div class="pc-carta"><span class="pc-tipo">AHORA</span><p id="j-consigna"></p></div>
+          <div class="pc-botones dos"><button class="btn btn-sec" id="j-cambiar">🔄 Otra consigna</button><button class="btn btn-sec" id="j-parar">⏹️ Terminar</button></div>`));
+        const mostrar = () => {
+          const r = $("#j-reloj"); if (!r || $("#hoja").hidden) return pararReloj();
+          r.textContent = `${Math.floor(resta / 60)}:${String(resta % 60).padStart(2, "0")}`;
+          $("#j-consigna").textContent = consigna;
+        };
+        mostrar();
+        relojJuego = setInterval(() => {
+          resta--;
+          if (resta > 0 && resta % 30 === 0) { consigna = az(j.cartas); P.vibrar("caricia"); }
+          if (resta <= 0) {
+            pararReloj(); P.vibrar("alerta");
+            $("#j-reloj") && ($("#j-reloj").textContent = "¡Tiempo! 🔥");
+            $("#j-consigna") && ($("#j-consigna").textContent = j.id === "todavia_no" ? "Ahora sí: lo que tengan ganas 😏" : "¡Cambien de rol o sigan sin reloj! 😏");
+            return;
+          }
+          mostrar();
+        }, 1000);
+        $("#j-cambiar").addEventListener("click", () => { consigna = az(j.cartas); mostrar(); });
+        $("#j-parar").addEventListener("click", () => { pararReloj(); elegir(); });
+        volver();
+      };
+      return elegir();
+    }
+
+    if (j.tipo === "coincidencias") {
+      const resp = [[], []];
+      const turno = (quien, i) => {
+        if (i >= j.cartas.length) {
+          if (quien === 0) {
+            abrirHoja(base(`<div class="pc-carta vacia"><p>¡Listo ${esc(n.yo)}! Ahora pasale el celu a ${esc(n.otro)} sin mirar 🙈</p></div>
+              <button class="btn btn-ancho" id="j-sig" style="margin-top:10px">Soy ${esc(n.otro)}, empezar</button>`));
+            $("#j-sig").addEventListener("click", () => turno(1, 0)); volver(); return;
+          }
+          const ambos = j.cartas.map((c, k) => ({ c, a: resp[0][k], b: resp[1][k] })).filter((x) => x.a !== "no" && x.b !== "no");
+          abrirHoja(base(`<p class="pc-turno">Coincidieron en ${ambos.length} ${ambos.length === 1 ? "cosa" : "cosas"} 😏</p>
+            <div class="lista-fechas">${ambos.map((x) => `<div class="fecha-item"><span class="fe">${x.a === "si" && x.b === "si" ? "🔥" : "🤔"}</span><div><b>${esc(x.c)}</b><small>${x.a === "si" && x.b === "si" ? "Los dos dijeron que sí" : "Al menos uno dijo 'tal vez'"}</small></div></div>`).join("") || `<p class="nota">Esta vez no coincidieron. ¡Prueben otro juego!</p>`}</div>`));
+          volver(); return;
+        }
+        abrirHoja(base(`<p class="pc-turno">Responde <b>${esc(quien === 0 ? n.yo : n.otro)}</b> (sin que el otro mire) · ${i + 1}/${j.cartas.length}</p>
+          <div class="pc-carta"><p>${esc(j.cartas[i])}</p></div>
+          <div class="pc-botones"><button class="btn" data-r="si">🔥 Sí</button><button class="btn btn-sec" data-r="talvez">🤔 Tal vez</button><button class="btn btn-sec" data-r="no">🙅 No</button></div>`));
+        $$("[data-r]").forEach((b) => b.addEventListener("click", () => { resp[quien][i] = b.dataset.r; turno(quien, i + 1); }));
+        volver();
+      };
+      return turno(0, 0);
+    }
+
+    // info
+    abrirHoja(base(j.mandar ? `<button class="btn btn-ancho" id="j-mandar" style="margin-top:8px">📲 Proponérselo a ${esc(n.otro)}</button>` : ""));
+    $("#j-mandar")?.addEventListener("click", () => mandar(`¿Jugamos? ${j.como}`));
+    volver();
   }
 
   // Cartas propias: las escriben ustedes, se guardan para los dos y salen mezcladas en el juego
