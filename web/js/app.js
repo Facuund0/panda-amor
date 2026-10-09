@@ -1576,6 +1576,45 @@
       return elegir();
     }
 
+    if (j.tipo === "rasca") {
+      const pintar = () => {
+        const premio = az(j.cartas);
+        abrirHoja(base(`<button class="rasca" id="j-rasca"><span>🎟️ Tocá para raspar</span></button>
+          <div class="pc-botones dos"><button class="btn" id="j-otra">🎟️ Otro boleto</button><button class="btn btn-sec" id="j-mandar">📲 Mandárselo</button></div>`));
+        $("#j-rasca").addEventListener("click", (e) => { const b = e.currentTarget; b.classList.add("raspado"); b.innerHTML = `<p>${esc(premio)}</p>`; panda?.reaccion("amor"); });
+        $("#j-otra").addEventListener("click", pintar);
+        $("#j-mandar").addEventListener("click", () => mandar(premio));
+        volver();
+      };
+      return pintar();
+    }
+
+    if (j.tipo === "tablero") {
+      const pos = [0, 0], nombresJ = [n.yo, n.otro];
+      let turno = 0, ultimo = null;
+      const pintar = () => {
+        const fin = j.casillas.length - 1;
+        abrirHoja(base(`<div class="tablero">${j.casillas.map((c, i) => `<span class="${pos[0] === i ? "j1" : ""} ${pos[1] === i ? "j2" : ""}">${i}</span>`).join("")}</div>
+          <p class="pc-turno">🔵 ${esc(n.yo)}: casilla ${pos[0]} · 🩷 ${esc(n.otro)}: casilla ${pos[1]}</p>
+          ${ultimo ? `<div class="pc-carta reto"><span class="pc-tipo">${esc(ultimo.quien)} sacó ${ultimo.dado} · casilla ${ultimo.casilla}</span><p>${esc(j.casillas[ultimo.casilla])}</p></div>` : `<div class="pc-carta vacia"><p>Empieza ${esc(nombresJ[turno])} 🎲</p></div>`}
+          <button class="btn btn-ancho" id="j-tirar" style="margin-top:10px">🎲 Tira ${esc(nombresJ[turno])}</button>`));
+        $("#j-tirar").addEventListener("click", () => {
+          const dado = 1 + Math.floor(Math.random() * 6);
+          let c = Math.min(fin, pos[turno] + dado);
+          const txt = j.casillas[c];
+          if (/Avanzá 2/.test(txt)) c = Math.min(fin, c + 2);
+          else if (/Volvé 2/.test(txt)) c = Math.max(0, c - 2);
+          else if (/casilla 10/.test(txt)) c = 10;
+          pos[turno] = c;
+          ultimo = { quien: nombresJ[turno], dado, casilla: c };
+          if (c === fin) aviso(`🏆 ¡${nombresJ[turno]} llegó a la meta!`);
+          turno = 1 - turno; panda?.reaccion("amor"); pintar();
+        });
+        volver();
+      };
+      return pintar();
+    }
+
     if (j.tipo === "coincidencias") {
       const resp = [[], []];
       const turno = (quien, i) => {

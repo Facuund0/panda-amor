@@ -418,3 +418,12 @@ button.sistema-ubic { border: 0; font-family: inherit; cursor: pointer; }
 .j-como { margin-bottom: 12px; }
 .reloj18 { text-align: center; font-size: 3rem; font-weight: 900; color: #c2253a; margin: 6px 0 10px; font-variant-numeric: tabular-nums; }
 .pc-carta.dados p { font-size: 1.35rem; }
+.rasca { width: 100%; min-height: 150px; border: 0; border-radius: 22px; cursor: pointer; font: inherit; font-weight: 900; font-size: 1.2rem; color: #fff;
+  background: repeating-linear-gradient(45deg, #b8b8c8, #b8b8c8 10px, #cfcfdc 10px, #cfcfdc 20px); box-shadow: inset 0 0 0 4px #e5383b; }
+.rasca.raspado { background: linear-gradient(160deg, #5a0f1c, #c2253a); box-shadow: 0 12px 30px rgba(122, 31, 61, .35); padding: 18px; }
+.rasca p { margin: 0; line-height: 1.35; }
+.tablero { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-bottom: 8px; }
+.tablero span { position: relative; text-align: center; padding: 8px 0; border-radius: 10px; background: #fff3f6; font-weight: 800; font-size: .8rem; color: var(--suave); }
+.tablero span.j1 { background: #8ecae6; color: #fff; }
+.tablero span.j2 { background: #ff6f9a; color: #fff; }
+.tablero span.j1.j2 { background: linear-gradient(90deg, #8ecae6 50%, #ff6f9a 50%); }
